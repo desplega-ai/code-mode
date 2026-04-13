@@ -1,0 +1,28 @@
+{
+  "name": "code-mode",
+  "description": "Persistent, typechecked script library for coding agents. Exposes search/run/save/queryTypes/listSdks over MCP and keeps the SQLite index in sync via a PostToolUse hook.",
+  "version": "0.1.0",
+  "author": { "name": "desplega.ai" },
+  "homepage": "https://github.com/desplega-ai/code-mode",
+  "repository": "https://github.com/desplega-ai/code-mode",
+  "license": "MIT",
+  "mcpServers": {
+    "code-mode": {
+      "command": "npx",
+      "args": ["-y", "@desplega/code-mode", "mcp"]
+    }
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if echo \"$CLAUDE_TOOL_FILE_PATH\" | grep -q '/.code-mode/'; then npx -y @desplega/code-mode reindex --paths \"$CLAUDE_TOOL_FILE_PATH\" >/dev/null 2>&1 || true; fi"
+          }
+        ]
+      }
+    ]
+  }
+}

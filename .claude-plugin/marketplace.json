@@ -1,0 +1,21 @@
+{
+  "name": "code-mode",
+  "owner": { "name": "desplega.ai" },
+  "metadata": {
+    "description": "Typechecked, searchable, reusable scripts for coding agents.",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "code-mode",
+      "source": "./plugins/code-mode",
+      "description": "MCP + hook + skill that turn throwaway agent scripts into a persistent, searchable library.",
+      "version": "0.1.0",
+      "homepage": "https://github.com/desplega-ai/code-mode",
+      "repository": "https://github.com/desplega-ai/code-mode",
+      "license": "MIT",
+      "keywords": ["mcp", "typescript", "scripts", "sqlite", "fts5"],
+      "category": "productivity"
+    }
+  ]
+}

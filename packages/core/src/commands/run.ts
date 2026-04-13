@@ -13,7 +13,7 @@
 import { existsSync, mkdtempSync, writeFileSync, unlinkSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve as resolvePath, isAbsolute, join } from "node:path";
-import { Database } from "bun:sqlite";
+import { openDatabase } from "../db/open.ts";
 import { execScript, type RunResult } from "../runner/exec.ts";
 import { resolveWorkspacePaths } from "../index/reindex.ts";
 import { migrate } from "../db/migrate.ts";
@@ -138,20 +138,11 @@ async function resolveEntry(
 }
 
 async function readStdin(): Promise<string> {
-  const chunks: Uint8Array[] = [];
-  const stream = Bun.stdin.stream();
-  // @ts-ignore — Bun.stdin.stream() is an async iterable of Uint8Array
-  for await (const chunk of stream as unknown as AsyncIterable<Uint8Array>) {
-    chunks.push(chunk);
+  const chunks: Buffer[] = [];
+  for await (const chunk of process.stdin) {
+    chunks.push(chunk as Buffer);
   }
-  const total = chunks.reduce((n, c) => n + c.byteLength, 0);
-  const buf = new Uint8Array(total);
-  let off = 0;
-  for (const c of chunks) {
-    buf.set(c, off);
-    off += c.byteLength;
-  }
-  return new TextDecoder().decode(buf);
+  return Buffer.concat(chunks).toString("utf8");
 }
 
 // ───────────────────────────────────────────────────────────────── db hook ──
@@ -175,7 +166,7 @@ export function updateUsageCounter(
 ): void {
   const ws = resolveWorkspacePaths(workspaceDir);
   if (!existsSync(ws.dbPath)) return;
-  const db = new Database(ws.dbPath);
+  const db = openDatabase(ws.dbPath);
   try {
     migrate(db);
     const row = getScript(db, entryAbs);
@@ -188,7 +179,7 @@ export function updateUsageCounter(
       oldRate == null
         ? outcome
         : (oldRate * oldRuns + outcome) / newRuns;
-    db.query(
+    db.prepare(
       `UPDATE scripts SET runs = ?, last_run = ?, success_rate = ? WHERE path = ?`,
     ).run(newRuns, new Date().toISOString(), newRate, entryAbs);
   } finally {

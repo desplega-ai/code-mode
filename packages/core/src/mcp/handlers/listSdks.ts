@@ -2,7 +2,7 @@
  * MCP tool handler: `list_sdks`.
  */
 
-import type { Database } from "bun:sqlite";
+import type { Database } from "better-sqlite3";
 import { listSdks, type SdkSummary } from "../../queries/listSdks.ts";
 
 export interface ListSdksResult {

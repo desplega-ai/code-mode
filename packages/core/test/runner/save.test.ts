@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Database } from "bun:sqlite";
+import { openDatabase } from "../../src/db/open.ts";
 import { handler as saveHandler } from "../../src/commands/save.ts";
 import type { SaveResult } from "../../src/commands/save.ts";
 import { resolveWorkspacePaths } from "../../src/index/reindex.ts";
@@ -43,7 +43,7 @@ function scaffoldWorkspace(root: string): string {
   );
   // Empty DB so updateUsageCounter can work without needing reindex first.
   const dbPath = join(codeMode, "code-mode.db");
-  const db = new Database(dbPath);
+  const db = openDatabase(dbPath);
   migrate(db);
   db.close();
   return ws;
@@ -86,9 +86,9 @@ describe("save command", () => {
     expect(existsSync(savedPath)).toBe(true);
 
     // Reindex populated the scripts table.
-    const db = new Database(ws2.dbPath);
+    const db = openDatabase(ws2.dbPath);
     const row = db
-      .query("SELECT path, name FROM scripts WHERE path = ?")
+      .prepare("SELECT path, name FROM scripts WHERE path = ?")
       .get(savedPath) as { path: string; name: string } | null;
     expect(row).not.toBeNull();
     expect(row!.name).toBe("hello");

@@ -2,7 +2,7 @@
  * MCP tool handler: `search`.
  */
 
-import type { Database } from "bun:sqlite";
+import type { Database } from "better-sqlite3";
 import { search, type SearchHit, type SearchScope } from "../../queries/search.ts";
 
 export interface SearchArgs {

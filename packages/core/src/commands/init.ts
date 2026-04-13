@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { resolve, join, dirname } from "node:path";
 import { spawnSync } from "node:child_process";
-import { Database } from "bun:sqlite";
+import { openDatabase } from "../db/open.ts";
 import { tsconfigJson } from "../templates/tsconfig.json.ts";
 import { packageJson } from "../templates/package.json.ts";
 import { filterTs } from "../templates/stdlib/filter.ts";
@@ -34,7 +34,7 @@ interface WriteTarget {
  *   - sdks/.keep
  *   - sdks/stdlib/{filter,fuzzy-match,flatten,table}.ts
  *   - sdks/.generated/.keep
- *   - code-mode.db           (empty SQLite file, via bun:sqlite)
+ *   - code-mode.db           (empty SQLite file, via better-sqlite3)
  *
  * Then, unless `--no-install` is passed, runs `bun install` inside the
  * workspace so that `@/*` path resolution has a `node_modules/` to
@@ -83,9 +83,9 @@ export function handler(opts: InitOptions): void {
     writeFileSync(abs, target.content, "utf8");
   }
 
-  // Create an empty SQLite database file via bun:sqlite so the file header is valid.
+  // Create an empty SQLite database file so the file header is valid.
   const dbPath = join(workspace, "code-mode.db");
-  const db = new Database(dbPath);
+  const db = openDatabase(dbPath);
   db.close();
 
   console.log(`[code-mode init] scaffolded workspace at ${workspace}`);

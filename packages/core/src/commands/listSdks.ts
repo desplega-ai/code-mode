@@ -3,7 +3,7 @@
  */
 
 import { join, resolve } from "node:path";
-import { Database } from "bun:sqlite";
+import { openDatabase } from "../db/open.ts";
 import { migrate } from "../db/migrate.ts";
 import { listSdks } from "../queries/listSdks.ts";
 
@@ -15,7 +15,7 @@ export interface ListSdksOptions {
 export function handler(opts: ListSdksOptions): void {
   const workspaceDir = resolve(opts.path ?? process.cwd());
   const dbPath = join(workspaceDir, ".code-mode", "code-mode.db");
-  const db = new Database(dbPath);
+  const db = openDatabase(dbPath);
   migrate(db);
   const sdks = listSdks(db);
   if (opts.json) {

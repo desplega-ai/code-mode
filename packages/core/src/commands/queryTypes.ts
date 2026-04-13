@@ -3,7 +3,7 @@
  */
 
 import { join, resolve } from "node:path";
-import { Database } from "bun:sqlite";
+import { openDatabase } from "../db/open.ts";
 import { migrate } from "../db/migrate.ts";
 import { queryTypes } from "../queries/queryTypes.ts";
 
@@ -18,7 +18,7 @@ export interface QueryTypesOptions {
 export function handler(pattern: string, opts: QueryTypesOptions): void {
   const workspaceDir = resolve(opts.path ?? process.cwd());
   const dbPath = join(workspaceDir, ".code-mode", "code-mode.db");
-  const db = new Database(dbPath);
+  const db = openDatabase(dbPath);
   migrate(db);
   const limit = opts.limit ? Number(opts.limit) : undefined;
   const results = queryTypes(db, {

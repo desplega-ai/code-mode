@@ -1,51 +1,122 @@
 # code-mode
 
-CLI + MCP server for typed, reusable script management. See the [implementation plan](./thoughts/taras/plans/2026-04-13-code-mode.md).
+> CLI + MCP server for typed, reusable script management.
 
-## Integrate with Claude Code
+`code-mode` turns throwaway agent scripts into a typechecked, searchable,
+reusable library. The CLI indexes scripts you (or your coding agent) save
+under `.code-mode/` into a SQLite+FTS5 store, exposes them as MCP tools,
+and keeps the index in lockstep with disk via a Claude Code `PostToolUse`
+hook.
 
-code-mode's `reindex --paths <file>` flag is the cheap seam that keeps the
-SQLite index aligned with whatever the agent just wrote. Wire it up as a
-Claude Code `PostToolUse` hook so every `Write`/`Edit` under `.code-mode/`
-triggers an incremental reindex + typecheck. Broken scripts flip to
-`status = 'unusable'` immediately and fall out of `search` results, so the
-agent doesn't re-discover its own dead code.
+- **Published package:** [`code-mode`](https://www.npmjs.com/package/code-mode) on npm
+- **Package source:** [`packages/core`](./packages/core)
 
-A ready-to-paste snippet lives in [`hooks/post-edit.json`](./hooks/post-edit.json).
+## Install
 
-### Install
+```bash
+# one-off (no install)
+bunx code-mode --help
+npx code-mode --help
 
-1. Open `~/.claude/settings.json` (or a project-scoped `.claude/settings.json`).
-2. Merge the `hooks` object from `hooks/post-edit.json` into your settings —
-   if you already have a `PostToolUse` entry, append the matcher instead of
-   replacing it.
-3. Make sure `bunx` is on `PATH` and `code-mode` is installed (either
-   globally or resolvable via `bunx -p code-mode`).
+# global
+npm i -g code-mode
+bun add -g code-mode
+```
 
-Then run `code-mode doctor` inside any initialized workspace — it full-
-typechecks every indexed script and marks any that fail as `unusable`. Pass
-`--json` for machine-readable output, `--stale-days 14` to tune freshness,
-and `--no-fail` to force exit 0 in CI.
+Requires **Node ≥ 20** or **Bun ≥ 1.1**. Some commands (`run`, `inspect`)
+spawn TypeScript directly and will use Bun if it's on `PATH`.
 
-## Cleanup
+## Quick start
 
-`code-mode gc` (default dry-run) surfaces duplicate symbols and stale
-scripts. Pass `--apply` to move stale scripts into
-`.code-mode/.trash/<timestamp>/` — nothing is ever deleted, just relocated,
-so rolling a decision back is a single `mv`.
+```bash
+code-mode init                               # scaffold .code-mode/
+code-mode save hello --file ./hello.ts       # persist a script
+code-mode run hello --args '{"name":"x"}'    # execute it
+code-mode mcp                                # expose as MCP server (stdio)
+code-mode inspect                            # browser inspector
+```
 
-## Platform support
+Full command reference lives in [`packages/core/README.md`](./packages/core/README.md).
 
-`code-mode run` enforces execution limits via a POSIX shell wrapper:
+## Claude Code integration
 
-| Limit | POSIX (macOS/Linux) | Windows |
-|---|---|---|
-| `--timeout` (wall-clock) | ✅ via `AbortSignal.timeout()` | ✅ same |
-| `--max-output` (stdout/stderr cap) | ✅ always on, 1MB default | ✅ same |
-| `--max-args` (argsJson pre-check) | ✅ 256KB default | ✅ same |
-| `--max-memory` (`ulimit -v`) | ✅ Linux honours it. macOS `ulimit -v` is advisory — use with awareness. | ❌ not enforced |
-| `--max-cpu` (`ulimit -t`) | ✅ Linux honours it | ❌ not enforced |
+`code-mode reindex --paths <file>` is the cheap seam that keeps the SQLite
+index aligned with whatever the agent just wrote. Wire it up as a Claude
+Code `PostToolUse` hook so every `Write`/`Edit` under `.code-mode/`
+triggers an incremental reindex + typecheck.
 
-Windows users still get timeout, output, and args-size enforcement — just
-not memory or CPU caps. Treat this as MVP scope; a sandboxed runner (e2b,
-modal, or a native resource-limit shim) is the post-MVP answer.
+1. Open `~/.claude/settings.json` (or a project-scoped
+   `.claude/settings.json`).
+2. Merge the `hooks` block from [`hooks/post-edit.json`](./hooks/post-edit.json)
+   into your settings — if you already have a `PostToolUse` entry, append
+   the matcher instead of replacing it.
+3. Make sure `code-mode` is resolvable (globally installed or via
+   `bunx`/`npx`).
+
+Then run `code-mode doctor` inside any initialized workspace.
+
+## Repository layout
+
+This is a Bun workspace monorepo.
+
+```
+.
+├── packages/
+│   ├── core/                  # published as `code-mode` on npm — CLI + MCP server
+│   │   ├── bin/code-mode.ts   # CLI entry (shebang)
+│   │   ├── src/
+│   │   │   ├── cli.ts         # commander program
+│   │   │   ├── commands/      # one file per subcommand
+│   │   │   ├── analysis/      # ts-morph powered script analysis
+│   │   │   ├── db/            # SQLite schema + migrations
+│   │   │   ├── index/         # reindex pipeline
+│   │   │   ├── mcp/           # MCP server adapter
+│   │   │   ├── queries/       # FTS5 / metadata queries
+│   │   │   ├── runner/        # sandboxed `run` command
+│   │   │   ├── sdk-gen/       # MCP → typed SDK emitter
+│   │   │   └── templates/     # workspace scaffolding
+│   │   └── test/              # bun:test suite
+│   │
+│   └── inspector/             # browser inspector (currently dev-only, not published)
+│
+├── hooks/                     # Claude Code hook snippets (post-edit reindex)
+├── docs/                      # user-facing docs (scripts.md, etc.)
+├── thoughts/                  # design notes, research, plans (not shipped)
+├── package.json               # workspace root — `workspaces: ["packages/*"]`
+├── bun.lock
+├── LICENSE                    # MIT
+└── README.md                  # you are here
+```
+
+## Local development
+
+```bash
+bun install
+bun run dev            # runs packages/core CLI from source
+bun run typecheck      # tsc across all workspaces
+bun run test           # bun:test across all workspaces
+bun run inspect        # launch the inspector against a local workspace
+```
+
+The CLI entry point is `packages/core/bin/code-mode.ts`; it uses a bun
+shebang so you can execute it directly during dev.
+
+## Publishing
+
+`packages/core` is what ships to npm as `code-mode`. The package is
+bundled for Node via `bun build --target=node` on `prepublishOnly`.
+
+```bash
+cd packages/core
+bun run build          # emits dist/cli.js + dist/migrations/
+npm pack --dry-run     # inspect tarball contents
+npm publish            # publishConfig.access = public (unscoped)
+```
+
+The `inspector` package is not currently published; the `code-mode
+inspect` command falls back to `bunx code-mode-inspect` if it can't find a
+sibling install.
+
+## License
+
+MIT © desplega.ai — see [LICENSE](./LICENSE).

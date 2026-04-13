@@ -1,23 +1,60 @@
 {
-  "name": "@code-mode/core",
-  "version": "0.0.0",
+  "name": "code-mode",
+  "version": "0.1.0",
   "type": "module",
   "description": "CLI + MCP server for typed, reusable script management",
+  "keywords": [
+    "cli",
+    "mcp",
+    "claude",
+    "claude-code",
+    "typescript",
+    "sdk",
+    "code-mode",
+    "agent"
+  ],
+  "homepage": "https://github.com/desplega-ai/code-mode#readme",
+  "bugs": {
+    "url": "https://github.com/desplega-ai/code-mode/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/desplega-ai/code-mode.git",
+    "directory": "packages/core"
+  },
+  "license": "MIT",
+  "author": "desplega.ai",
   "bin": {
-    "code-mode": "./bin/code-mode.ts"
+    "code-mode": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "bun test",
-    "dev": "bun run bin/code-mode.ts"
+    "dev": "bun run bin/code-mode.ts",
+    "clean": "rm -rf dist",
+    "build": "bun run clean && bun build bin/code-mode.ts --target=node --outfile=dist/cli.js --external=ts-morph --external=typescript --external=@modelcontextprotocol/sdk --external=commander --external=better-sqlite3 && cp -r src/db/migrations dist/migrations && chmod +x dist/cli.js",
+    "prepublishOnly": "bun run typecheck && bun run test && bun run build"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
+    "better-sqlite3": "^12.9.0",
     "commander": "^12.0.0",
-    "ts-morph": "^24.0.0"
+    "ts-morph": "^24.0.0",
+    "typescript": "^5.5.0"
   },
   "devDependencies": {
-    "@types/bun": "latest",
-    "typescript": "^5.5.0"
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/bun": "latest"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

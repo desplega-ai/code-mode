@@ -2,7 +2,7 @@
  * MCP tool handler: `query_types`.
  */
 
-import type { Database } from "bun:sqlite";
+import type { Database } from "better-sqlite3";
 import { queryTypes, type SymbolMatch } from "../../queries/queryTypes.ts";
 
 export interface QueryTypesArgs {

@@ -20,7 +20,7 @@
  *     visible via doctor" decision.
  */
 
-import type { Database } from "bun:sqlite";
+import type { Database } from "better-sqlite3";
 import { toFtsMatchExpression } from "./queryTypes.ts";
 
 export type SearchScope = "script" | "sdk" | "stdlib" | "generated";
@@ -109,7 +109,7 @@ function searchScripts(
       ORDER BY rank
       LIMIT $limit
     `;
-    const rows = db.query(sql).all({ $q: args.ftsExpr, $limit: args.limit }) as Array<{
+    const rows = db.prepare(sql).all({ q: args.ftsExpr, limit: args.limit }) as Array<{
       path: string;
       name: string;
       description: string | null;
@@ -134,7 +134,7 @@ function searchScripts(
     ORDER BY runs DESC, name ASC
     LIMIT $limit
   `;
-  const rows = db.query(sql).all({ $limit: args.limit }) as Array<{
+  const rows = db.prepare(sql).all({ limit: args.limit }) as Array<{
     path: string;
     name: string;
     description: string | null;
@@ -165,7 +165,7 @@ function searchSymbols(
   },
 ): SearchHit[] {
   const where: string[] = [];
-  const params: Record<string, unknown> = { $limit: args.limit };
+  const params: Record<string, unknown> = { limit: args.limit };
 
   // Map search scope → symbol.scope. "sdk" encompasses user SDKs only.
   if (args.scope === "stdlib") {
@@ -177,12 +177,12 @@ function searchSymbols(
   }
   if (args.kind) {
     where.push(`s.kind = $kind`);
-    params.$kind = args.kind;
+    params.kind = args.kind;
   }
   const whereExtra = where.length > 0 ? ` AND ${where.join(" AND ")}` : "";
 
   if (args.useFts) {
-    params.$q = args.ftsExpr;
+    params.q = args.ftsExpr;
     const sql = `
       SELECT s.source_path, s.name, s.kind, s.scope, s.sdk_name, s.jsdoc,
              bm25(symbols_fts) AS rank
@@ -192,7 +192,7 @@ function searchSymbols(
       ORDER BY rank
       LIMIT $limit
     `;
-    const rows = db.query(sql).all(params as never) as Array<{
+    const rows = db.prepare(sql).all(params as never) as Array<{
       source_path: string;
       name: string;
       kind: string;
@@ -219,7 +219,7 @@ function searchSymbols(
     FROM symbols s ${whereClause}
     ORDER BY name LIMIT $limit
   `;
-  const rows = db.query(sql).all(params as never) as Array<{
+  const rows = db.prepare(sql).all(params as never) as Array<{
     source_path: string;
     name: string;
     kind: string;

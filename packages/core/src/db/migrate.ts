@@ -12,7 +12,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { Database } from "bun:sqlite";
+import type { Database } from "better-sqlite3";
 
 export interface MigrationFile {
   version: number;
@@ -70,7 +70,7 @@ export function migrate(
 }
 
 export function getUserVersion(db: Database): number {
-  const row = db.query("PRAGMA user_version").get() as
+  const row = db.prepare("PRAGMA user_version").get() as
     | { user_version: number }
     | null;
   return row?.user_version ?? 0;

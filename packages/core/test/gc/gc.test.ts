@@ -21,7 +21,8 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Database } from "bun:sqlite";
+import type { Database } from "better-sqlite3";
+import { openDatabase } from "../../src/db/open.ts";
 import { migrate } from "../../src/db/migrate.ts";
 import { insertSymbols, upsertScript } from "../../src/db/repo.ts";
 import { normalizeSignature, runGc } from "../../src/commands/gc.ts";
@@ -34,7 +35,7 @@ function scaffold(tmpRoot: string): { ws: string; scriptsDir: string } {
 }
 
 function openInMemory(): Database {
-  const db = new Database(":memory:");
+  const db = openDatabase(":memory:");
   migrate(db);
   return db;
 }
@@ -197,9 +198,9 @@ describe("gc/stale", () => {
     // no code referencing IT, so actually we expect importer to be stale too.
     // To keep this test focused on the imports rule, also mark importer as
     // recently run so it's not stale by age.
-    db.query(
+    db.prepare(
       `UPDATE scripts SET runs = 5, last_run = $now WHERE name = 'importer'`,
-    ).run({ $now: new Date().toISOString() });
+    ).run({ now: new Date().toISOString() });
 
     const dry = await runGc(ws, { db });
     const staleNames = dry.stale.map((s) => s.name).sort();

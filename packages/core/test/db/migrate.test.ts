@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync, readdirSync, copyFileSyn
 import { tmpdir } from "node:os";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { Database } from "bun:sqlite";
+import { openDatabase } from "../../src/db/open.ts";
 import { migrate, getUserVersion, listMigrations } from "../../src/db/migrate.ts";
 
 const MIGRATIONS_SRC = resolve(
@@ -39,14 +39,14 @@ describe("migrate", () => {
   });
 
   test("initial migration creates tables and bumps user_version", () => {
-    const db = new Database(dbPath);
+    const db = openDatabase(dbPath);
     const applied = migrate(db);
     expect(applied).toEqual([1]);
     expect(getUserVersion(db)).toBe(1);
 
     // Confirm expected tables exist.
     const tables = (db
-      .query(`SELECT name FROM sqlite_master WHERE type IN ('table', 'virtual')`)
+      .prepare(`SELECT name FROM sqlite_master WHERE type IN ('table', 'virtual')`)
       .all() as { name: string }[]).map((r) => r.name);
     for (const expected of [
       "scripts",
@@ -61,7 +61,7 @@ describe("migrate", () => {
   });
 
   test("migration runner is idempotent", () => {
-    const db = new Database(dbPath);
+    const db = openDatabase(dbPath);
     const applied1 = migrate(db);
     const applied2 = migrate(db);
     expect(applied1.length).toBeGreaterThan(0);
@@ -71,12 +71,12 @@ describe("migrate", () => {
   });
 
   test("running migrate on two separate Database connections gives same user_version", () => {
-    const a = new Database(dbPath);
+    const a = openDatabase(dbPath);
     migrate(a);
     const versionA = getUserVersion(a);
     a.close();
 
-    const b = new Database(dbPath);
+    const b = openDatabase(dbPath);
     migrate(b);
     const versionB = getUserVersion(b);
     expect(versionB).toBe(versionA);
@@ -87,7 +87,7 @@ describe("migrate", () => {
     const dir = makeMirroredMigrationsDir();
     try {
       // First, apply existing migrations.
-      const db = new Database(dbPath);
+      const db = openDatabase(dbPath);
       migrate(db, dir);
       const baseline = getUserVersion(db);
       expect(baseline).toBeGreaterThanOrEqual(1);

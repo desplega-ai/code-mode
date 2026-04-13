@@ -21,7 +21,7 @@ import {
   renameSync,
 } from "node:fs";
 import { join } from "node:path";
-import type { Database } from "bun:sqlite";
+import type { Database } from "better-sqlite3";
 import { migrate } from "../db/migrate.ts";
 import { resolveWorkspacePaths } from "../index/reindex.ts";
 
@@ -182,7 +182,7 @@ function splitTopLevelPipe(s: string): string[] {
 }
 
 function detectDuplicates(db: Database): DuplicateGroup[] {
-  const rows = db.query(
+  const rows = db.prepare(
     `SELECT id, source_path, kind, name, signature, sdk_name FROM symbols`,
   ).all() as SymbolRowLite[];
 
@@ -228,7 +228,7 @@ function detectStaleScripts(
   db: Database,
   staleDays: number,
 ): StaleScriptEntry[] {
-  const scripts = db.query(
+  const scripts = db.prepare(
     `SELECT path, name, runs, last_run FROM scripts`,
   ).all() as ScriptRowLite[];
 
@@ -367,6 +367,6 @@ function printReport(report: GcReport): void {
 }
 
 async function openDb(dbPath: string) {
-  const { Database } = await import("bun:sqlite");
-  return new Database(dbPath);
+  const { openDatabase } = await import("../db/open.ts");
+  return openDatabase(dbPath);
 }

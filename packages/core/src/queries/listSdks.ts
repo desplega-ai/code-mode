@@ -5,7 +5,7 @@
  * the same name (wired in Phase 7).
  */
 
-import type { Database } from "bun:sqlite";
+import type { Database } from "better-sqlite3";
 import { listSdkRows } from "../db/repo.ts";
 import type { SdkScope } from "../db/schema.ts";
 

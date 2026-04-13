@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Database } from "bun:sqlite";
+import { openDatabase } from "../../src/db/open.ts";
 import { handler as runHandler } from "../../src/commands/run.ts";
 import { handler as saveHandler } from "../../src/commands/save.ts";
 import type { RunResult } from "../../src/runner/exec.ts";
@@ -44,7 +44,7 @@ function scaffoldWorkspace(root: string): string {
 `,
   );
   const dbPath = join(codeMode, "code-mode.db");
-  const db = new Database(dbPath);
+  const db = openDatabase(dbPath);
   migrate(db);
   db.close();
   return ws;
@@ -93,9 +93,9 @@ describe("run command: usage counters", () => {
     }
 
     const ws2 = resolveWorkspacePaths(ws);
-    const db = new Database(ws2.dbPath);
+    const db = openDatabase(ws2.dbPath);
     const row = db
-      .query(
+      .prepare(
         `SELECT runs, last_run, success_rate FROM scripts WHERE path = ?`,
       )
       .get(saveResult.path!) as
@@ -115,9 +115,9 @@ describe("run command: usage counters", () => {
     })) as RunResult;
     expect(r2.success).toBe(true);
 
-    const db2 = new Database(ws2.dbPath);
+    const db2 = openDatabase(ws2.dbPath);
     const row2 = db2
-      .query(`SELECT runs, success_rate FROM scripts WHERE path = ?`)
+      .prepare(`SELECT runs, success_rate FROM scripts WHERE path = ?`)
       .get(saveResult.path!) as { runs: number; success_rate: number };
     expect(row2.runs).toBe(2);
     expect(row2.success_rate).toBe(1);
@@ -145,8 +145,8 @@ describe("run command: usage counters", () => {
 
     // Nothing saved in scripts table.
     const ws2 = resolveWorkspacePaths(ws);
-    const db = new Database(ws2.dbPath);
-    const count = db.query(`SELECT COUNT(*) AS c FROM scripts`).get() as {
+    const db = openDatabase(ws2.dbPath);
+    const count = db.prepare(`SELECT COUNT(*) AS c FROM scripts`).get() as {
       c: number;
     };
     expect(count.c).toBe(0);

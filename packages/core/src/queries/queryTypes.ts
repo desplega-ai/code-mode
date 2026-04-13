@@ -10,7 +10,7 @@
  *     everything matching sdk/kind).
  */
 
-import type { Database } from "bun:sqlite";
+import type { Database } from "better-sqlite3";
 import type { SymbolKind, SymbolRow } from "../db/schema.ts";
 
 export interface QueryTypesOptions {
@@ -46,17 +46,17 @@ export function queryTypes(
 
   if (opts.sdk) {
     whereClauses.push(`s.sdk_name = $sdk`);
-    params.$sdk = opts.sdk;
+    params.sdk = opts.sdk;
   }
   if (opts.kind) {
     whereClauses.push(`s.kind = $kind`);
-    params.$kind = opts.kind;
+    params.kind = opts.kind;
   }
 
   let sql: string;
   if (useFts) {
     const ftsExpr = toFtsMatchExpression(trimmed);
-    params.$q = ftsExpr;
+    params.q = ftsExpr;
     const extra = whereClauses.length > 0 ? ` AND ${whereClauses.join(" AND ")}` : "";
     sql = `
       SELECT s.*
@@ -70,12 +70,9 @@ export function queryTypes(
     const where = whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
     sql = `SELECT s.* FROM symbols s ${where} ORDER BY s.name LIMIT $limit`;
   }
-  params.$limit = limit;
+  params.limit = limit;
 
-  // bun:sqlite's `.all(...)` is typed to accept a tuple of primitives or a
-  // single object of bindings. Casting here because the object form is the
-  // correct runtime shape but TypeScript can't prove the keys match.
-  const rows = db.query(sql).all(params as never) as SymbolRow[];
+  const rows = db.prepare(sql).all(params as never) as SymbolRow[];
   return rows.map((r) => ({
     id: r.id,
     name: r.name,

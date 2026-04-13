@@ -15,7 +15,8 @@
  *     the `content` array as a second text block.
  */
 
-import type { Database } from "bun:sqlite";
+import type { Database } from "better-sqlite3";
+import { openDatabase } from "../db/open.ts";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import {
   CallToolRequestSchema,
@@ -24,7 +25,6 @@ import {
   type Tool,
 } from "@modelcontextprotocol/sdk/types.js";
 import { migrate } from "../db/migrate.ts";
-import { Database as BunDatabase } from "bun:sqlite";
 import { resolveWorkspacePaths } from "../index/reindex.ts";
 import { handleSearch } from "./handlers/search.ts";
 import { handleRun } from "./handlers/run.ts";
@@ -63,7 +63,7 @@ export function createServer(opts: CreateServerOptions): Server {
         `code-mode workspace not initialized at ${ws.workspaceDir}. Run \`code-mode init\` first.`,
       );
     }
-    const db = new BunDatabase(ws.dbPath);
+    const db = openDatabase(ws.dbPath);
     migrate(db);
     return db;
   };

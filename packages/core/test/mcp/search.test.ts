@@ -4,7 +4,8 @@
  */
 
 import { describe, expect, test, beforeEach } from "bun:test";
-import { Database } from "bun:sqlite";
+import type { Database } from "better-sqlite3";
+import { openDatabase } from "../../src/db/open.ts";
 import { migrate } from "../../src/db/migrate.ts";
 import { upsertScript, insertSymbols } from "../../src/db/repo.ts";
 import { search } from "../../src/queries/search.ts";
@@ -47,7 +48,7 @@ describe("search", () => {
   let db: Database;
 
   beforeEach(() => {
-    db = new Database(":memory:");
+    db = openDatabase(":memory:");
     migrate(db);
     seed(db);
   });

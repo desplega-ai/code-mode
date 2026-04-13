@@ -17,7 +17,8 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Database } from "bun:sqlite";
+import type { Database } from "better-sqlite3";
+import { openDatabase } from "../../src/db/open.ts";
 import { reindex } from "../../src/index/reindex.ts";
 import { loadProject } from "../../src/analysis/project.ts";
 import { search } from "../../src/queries/search.ts";
@@ -62,7 +63,7 @@ export default async function main(_input: unknown): Promise<string> {
 }
 
 function openDb(ws: string): Database {
-  return new Database(join(ws, ".code-mode", "code-mode.db"));
+  return openDatabase(join(ws, ".code-mode", "code-mode.db"));
 }
 
 function addSources(project: ReturnType<typeof loadProject>, ws: string) {
@@ -136,7 +137,7 @@ export default async function main(_input: unknown): Promise<string> {
 
     // DB flipped to unusable.
     const row = db
-      .query(`SELECT status, status_reason FROM scripts WHERE name = 'broken'`)
+      .prepare(`SELECT status, status_reason FROM scripts WHERE name = 'broken'`)
       .get() as { status: string; status_reason: string | null };
     expect(row.status).toBe("unusable");
     expect(row.status_reason).not.toBeNull();
@@ -162,8 +163,8 @@ export default async function main(_input: unknown): Promise<string> {
     // Rewind the indexed_at of the good script so its mtime is newer than
     // the recorded index time (simulates a file edited since last reindex).
     const old = "2001-01-01T00:00:00.000Z";
-    db.query(`UPDATE scripts SET indexed_at = $t WHERE name = 'good'`).run({
-      $t: old,
+    db.prepare(`UPDATE scripts SET indexed_at = $t WHERE name = 'good'`).run({
+      t: old,
     });
 
     const report = await runDoctor(ws, { db, project });
@@ -180,13 +181,13 @@ export default async function main(_input: unknown): Promise<string> {
     await reindex(ws, { db, project });
 
     // Manually flip the status — simulates a previous doctor run.
-    db.query(
+    db.prepare(
       `UPDATE scripts SET status = 'unusable', status_reason = 'old failure' WHERE name = 'good'`,
     ).run();
 
     const report = await runDoctor(ws, { db, project });
     const okRow = db
-      .query(`SELECT status, status_reason FROM scripts WHERE name = 'good'`)
+      .prepare(`SELECT status, status_reason FROM scripts WHERE name = 'good'`)
       .get() as { status: string; status_reason: string | null };
     expect(okRow.status).toBe("ok");
     expect(okRow.status_reason).toBeNull();

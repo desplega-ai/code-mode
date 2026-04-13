@@ -17,7 +17,7 @@
 
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
-import type { Database } from "bun:sqlite";
+import type { Database } from "better-sqlite3";
 import type { Project } from "ts-morph";
 import { loadProject, scopedExtract } from "../analysis/project.ts";
 import {
@@ -84,7 +84,7 @@ export async function reindex(
   const started = Date.now();
   const ws = resolveWorkspacePaths(workspaceDir);
 
-  // Lazy import of bun:sqlite so this module is test-friendly under the
+  // Lazy import of better-sqlite3 so this module is test-friendly under the
   // ts-morph path too.
   const db = opts.db ?? (await openDb(ws.dbPath));
   migrate(db);
@@ -195,7 +195,7 @@ export async function reindex(
       if (filterPaths) {
         // Targeted run: count all symbols still on disk for this sdk_name.
         const existing = db
-          .query(`SELECT COUNT(*) as c FROM symbols WHERE sdk_name = ?`)
+          .prepare(`SELECT COUNT(*) as c FROM symbols WHERE sdk_name = ?`)
           .get(sdkName) as { c: number };
         meta.count = existing.c;
       }
@@ -240,7 +240,7 @@ export async function reindex(
     // Drop sdks rows whose source directory is empty or missing on disk.
     for (const row of listSdkRows(db)) {
       const stillHasSymbols = db
-        .query(`SELECT COUNT(*) AS c FROM symbols WHERE sdk_name = ?`)
+        .prepare(`SELECT COUNT(*) AS c FROM symbols WHERE sdk_name = ?`)
         .get(row.name) as { c: number };
       if (stillHasSymbols.c === 0) {
         deleteSdk(db, row.name);
@@ -393,8 +393,8 @@ function deriveScriptTags(exports: ExportInfo[]): string[] | null {
 }
 
 async function openDb(dbPath: string) {
-  const { Database } = await import("bun:sqlite");
-  return new Database(dbPath);
+  const { openDatabase } = await import("../db/open.ts");
+  return openDatabase(dbPath);
 }
 
 // Re-exports for consumers that just want the reindex + utility surface.

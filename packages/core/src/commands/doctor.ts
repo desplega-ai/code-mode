@@ -16,7 +16,7 @@
  */
 
 import { existsSync, statSync } from "node:fs";
-import type { Database } from "bun:sqlite";
+import type { Database } from "better-sqlite3";
 import type { Project } from "ts-morph";
 import { loadProject } from "../analysis/project.ts";
 import { typecheckFile } from "../analysis/typecheck.ts";
@@ -100,7 +100,7 @@ export async function runDoctor(
   const project = opts.project ?? loadProject(workspaceDir);
   const staleDays = normalizeStaleDays(opts.staleDays);
 
-  const rows = db.query(
+  const rows = db.prepare(
     `SELECT path, name, status, status_reason, runs, last_run, success_rate, indexed_at
        FROM scripts`,
   ).all() as ScriptHealthRow[];
@@ -110,7 +110,7 @@ export async function runDoctor(
   const lowSuccess: DoctorLowSuccessEntry[] = [];
   const freshness: DoctorFreshnessEntry[] = [];
 
-  const updateStatus = db.query(
+  const updateStatus = db.prepare(
     `UPDATE scripts SET status = $status, status_reason = $reason WHERE path = $path`,
   );
 
@@ -139,10 +139,10 @@ export async function runDoctor(
 
     if (reason !== null) {
       broken.push({ path: row.path, name: row.name, reason });
-      updateStatus.run({ $status: "unusable", $reason: reason, $path: row.path });
+      updateStatus.run({ status: "unusable", reason: reason, path: row.path });
     } else if (row.status !== "ok") {
       // Recovery: previously broken scripts that now typecheck clean flip back.
-      updateStatus.run({ $status: "ok", $reason: null, $path: row.path });
+      updateStatus.run({ status: "ok", reason: null, path: row.path });
     }
 
     // Stale detection — independent of typecheck health.
@@ -303,6 +303,6 @@ function printReport(report: DoctorReport): void {
 }
 
 async function openDb(dbPath: string) {
-  const { Database } = await import("bun:sqlite");
-  return new Database(dbPath);
+  const { openDatabase } = await import("../db/open.ts");
+  return openDatabase(dbPath);
 }

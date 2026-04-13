@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Database } from "bun:sqlite";
+import type { Database } from "better-sqlite3";
+import { openDatabase } from "../../src/db/open.ts";
 import { migrate } from "../../src/db/migrate.ts";
 import {
   deleteScript,
@@ -26,7 +27,7 @@ describe("repo CRUD", () => {
 
   beforeEach(() => {
     tmpRoot = mkdtempSync(join(tmpdir(), "code-mode-repo-"));
-    db = new Database(join(tmpRoot, "code-mode.db"));
+    db = openDatabase(join(tmpRoot, "code-mode.db"));
     migrate(db);
   });
 
@@ -54,7 +55,7 @@ describe("repo CRUD", () => {
 
     // FTS lookup.
     const hits = db
-      .query(`SELECT name FROM scripts_fts WHERE scripts_fts MATCH 'demo'`)
+      .prepare(`SELECT name FROM scripts_fts WHERE scripts_fts MATCH 'demo'`)
       .all() as { name: string }[];
     expect(hits.some((h) => h.name === "demo")).toBe(true);
 
@@ -75,7 +76,7 @@ describe("repo CRUD", () => {
 
     // Only a single rowid should still exist in scripts_fts.
     const cnt = db
-      .query(`SELECT COUNT(*) as c FROM scripts_fts WHERE scripts_fts MATCH 'updated'`)
+      .prepare(`SELECT COUNT(*) as c FROM scripts_fts WHERE scripts_fts MATCH 'updated'`)
       .get() as { c: number };
     expect(cnt.c).toBe(1);
   });
@@ -96,7 +97,7 @@ describe("repo CRUD", () => {
     deleteScript(db, "/ws/scripts/gone.ts");
     expect(listScriptPaths(db)).not.toContain("/ws/scripts/gone.ts");
     const hits = db
-      .query(`SELECT COUNT(*) as c FROM scripts_fts WHERE scripts_fts MATCH 'gone'`)
+      .prepare(`SELECT COUNT(*) as c FROM scripts_fts WHERE scripts_fts MATCH 'gone'`)
       .get() as { c: number };
     expect(hits.c).toBe(0);
   });

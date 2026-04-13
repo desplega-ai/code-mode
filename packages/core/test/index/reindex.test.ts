@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Database } from "bun:sqlite";
+import type { Database } from "better-sqlite3";
+import { openDatabase } from "../../src/db/open.ts";
 import { reindex, resolveWorkspacePaths } from "../../src/index/reindex.ts";
 import { loadProject } from "../../src/analysis/project.ts";
 import { listSdks } from "../../src/queries/listSdks.ts";
@@ -68,7 +69,7 @@ export default async function main(args: unknown): Promise<unknown> {
 }
 
 function openDb(ws: string): Database {
-  return new Database(join(ws, ".code-mode", "code-mode.db"));
+  return openDatabase(join(ws, ".code-mode", "code-mode.db"));
 }
 
 describe("reindex", () => {

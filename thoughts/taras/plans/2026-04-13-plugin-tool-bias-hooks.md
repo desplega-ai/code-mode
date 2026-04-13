@@ -350,6 +350,6 @@ Single-line `echo 'x' | node` does **not** match — that's often legitimate pip
 
 ## Done when
 
-- All six phases merged, tagged `v0.2.0` in both manifests.
+- All six phases merged, tagged `v0.3.0` in both manifests (subsequently bumped to 0.3.1, 0.3.2, 0.3.3 for bugs live E2E surfaced — see `thoughts/taras/qa/2026-04-13-plugin-tool-bias.md` for the version trail).
 - Manual E2E section executed top-to-bottom with captured output in `thoughts/taras/qa/2026-04-13-plugin-tool-bias.md`.
 - Fresh-install flow: `/plugin install code-mode@code-mode` on a machine with `@desplega/code-mode` already on PATH (global or project-local) routes through `start.mjs` without hitting `npx`. `code-mode doctor` reports the resolved path.

@@ -22,6 +22,7 @@ Plan: `thoughts/taras/plans/2026-04-13-plugin-tool-bias-hooks.md`
 | 0.3.1 | `9554382` | MCP tool-name prefix fix — live E2E caught double-underscore bug in hardcoded allow + every `mcp__plugin_code-mode__*` reference in message templates. Real format is `mcp__plugin_<plugin-id>_<server>__<tool>` (single `_`). |
 | 0.3.2 | `1fbff71` | Messaging fix — `MCP_BLOCK_REASON` / `MCP_HINT` now push "write a code-mode script using stdlib helpers" as primary path; `__search` demoted to "find existing scripts". Split init reindex gating so `--no-install` still runs MCP introspection. Added empty-state `note` on MCP `list_sdks`. |
 | 0.3.3 | `d79d3a4` | SDK generator fix — extensionless imports (was `./_client.ts`, now `./_client`), matches stdlib style + bundler resolution. Scaffold `package.json` gains `@modelcontextprotocol/sdk` as runtime dep so generated SDKs actually resolve. |
+| 0.3.4 | `a5a9097` | Pin `@latest` in `start.mjs`'s npx fallback — live E2E right after publishing 0.3.3 found that bare `npx -y @desplega/code-mode` fails with `sh: code-mode: command not found` (npm/npx quirk with scoped packages in some cache states). `@latest` forces registry metadata path which links the bin correctly. Verified: MCP server subprocess now reports `serverVersion: 0.3.4`. |
 
 ## Results (one entry per Manual E2E step from the plan)
 

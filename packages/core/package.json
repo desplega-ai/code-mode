@@ -25,7 +25,7 @@
   "license": "MIT",
   "author": "desplega.ai",
   "bin": {
-    "code-mode": "./dist/cli.js"
+    "code-mode": "dist/cli.js"
   },
   "files": [
     "dist",

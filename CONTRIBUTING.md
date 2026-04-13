@@ -145,9 +145,49 @@ hit wins):
    → global install (`npm i -g`, `bun add -g`, volta, fnm shims).
 4. `npx -y @desplega/code-mode` — cold-machine fallback.
 
+### Installing the plugin locally
+
+Four helper scripts wrap the `claude plugin` CLI for the common dev
+flows. All are defined in the root `package.json` and delegate to
+`scripts/plugin.sh`:
+
+```bash
+bun run plugin:install          # register this working tree as a
+                                # local marketplace + install from it
+bun run plugin:update           # rebuild core, refresh the marketplace,
+                                # pull the latest plugin manifest
+bun run plugin:uninstall        # remove the plugin + the marketplace
+bun run plugin:install-remote   # swap local for GitHub
+                                # (desplega-ai/code-mode)
+```
+
+`plugin:install` is idempotent — it removes any existing `code-mode`
+plugin + marketplace first, so it's safe to re-run after you've been
+on the remote marketplace or a different branch. After install you
+still need to run `/plugin reload` (or exit + relaunch Claude Code)
+for the new session's hook registrations to pick up the manifest.
+
+Rebuild-then-reload loop after source edits:
+
+```bash
+bun run plugin:update           # rebuilds packages/core + refreshes
+# then in Claude Code:
+/plugin reload
+```
+
+When you're done testing locally, swap back to the published version:
+
+```bash
+bun run plugin:install-remote
+```
+
 ### Iterating on the plugin
 
-From the repo root:
+`bun run plugin:install` is the most realistic dev loop (it's what a
+user actually gets on install). For the fastest inner loop —
+iterating on `packages/core/src/**` without rebuilding the marketplace
+on every change — use `CODE_MODE_DEV_PATH` instead, which bypasses
+the marketplace entirely:
 
 ```bash
 bun run --cwd packages/core build

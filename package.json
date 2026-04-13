@@ -9,7 +9,11 @@
     "typecheck": "bun run --filter '*' typecheck",
     "test": "bun test",
     "dev": "bun run --cwd packages/core dev",
-    "inspect": "bun run --cwd packages/inspector start"
+    "inspect": "bun run --cwd packages/inspector start",
+    "plugin:install": "bash scripts/plugin.sh install",
+    "plugin:install-remote": "bash scripts/plugin.sh install-remote",
+    "plugin:update": "bash scripts/plugin.sh update",
+    "plugin:uninstall": "bash scripts/plugin.sh uninstall"
   },
   "devDependencies": {
     "@types/bun": "latest",

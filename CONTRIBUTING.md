@@ -130,6 +130,45 @@ code-mode doctor --json
 npm uninstall -g code-mode
 ```
 
+## Plugin dev loop (`plugins/code-mode/start.mjs`)
+
+The Claude Code plugin routes its MCP server and reindex hook through
+`plugins/code-mode/start.mjs`, a smart-resolver that picks the fastest
+available `@desplega/code-mode` entrypoint. Resolution priority (first
+hit wins):
+
+1. `CODE_MODE_DEV_PATH` env — absolute path to a `dist/cli.js`. If set
+   but the file is missing the resolver errors out instead of silently
+   falling through, so you always know when your dev pointer is stale.
+2. `<cwd>/node_modules/@desplega/code-mode/dist/cli.js` — project-local.
+3. `require.resolve("@desplega/code-mode/package.json")` from `${HOME}`
+   → global install (`npm i -g`, `bun add -g`, volta, fnm shims).
+4. `npx -y @desplega/code-mode` — cold-machine fallback.
+
+### Iterating on the plugin
+
+From the repo root:
+
+```bash
+bun run --cwd packages/core build
+export CODE_MODE_DEV_PATH="$PWD/packages/core/dist/cli.js"
+```
+
+Then in a Claude Code session, run `/plugin reload` — the plugin will
+route every MCP + hook call through your local build. You'll see a
+one-line stderr banner `[code-mode] dev path: …` on each spawn,
+confirming dev mode is live.
+
+To smoke-test without reloading the plugin:
+
+```bash
+CODE_MODE_DEV_PATH="$PWD/packages/core/dist/cli.js" \
+  node plugins/code-mode/start.mjs --version
+```
+
+Unset `CODE_MODE_DEV_PATH` when you're done so the plugin goes back to
+whichever install is on disk.
+
 ## Repo layout
 
 See the root [README.md](./README.md#repository-layout) for the full tree.

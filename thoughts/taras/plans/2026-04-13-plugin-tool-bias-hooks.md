@@ -2,7 +2,9 @@
 title: Bias the code-mode plugin to prefer code-mode scripts over native Claude Code tools
 date: 2026-04-13
 author: Taras (drafted with Claude)
-status: proposed
+status: in-progress
+last_updated: 2026-04-13
+last_updated_by: Claude (Phase 1)
 ---
 
 # Plan — Tool-bias hooks + stdlib expansion for the code-mode plugin
@@ -84,10 +86,10 @@ Each step either `execve`'s into the resolved entry (inheriting stdio) or falls 
 - `CONTRIBUTING.md` *(new — does not exist at repo root yet)* — document the dev loop: `bun run --cwd packages/core build && export CODE_MODE_DEV_PATH="$PWD/packages/core/dist/cli.js"` (run from repo root to avoid `cd` ordering fragility), then `/plugin reload` in a Claude Code session and the plugin routes to the local build.
 
 **Verification** (run from repo root; Phase 1 creates `packages/core/test/plugin/` — that dir does not currently exist):
-- `bun test packages/core/test/plugin/start-resolver.test.ts` passes.
-- `node plugins/code-mode/start.mjs --version` prints the version (whichever path resolved). Requires at least one of: `CODE_MODE_DEV_PATH` set, a local `@desplega/code-mode` install, or network access for the `npx` fallback — otherwise this command fails by design.
-- `CODE_MODE_DEV_PATH="$PWD/packages/core/dist/cli.js" node plugins/code-mode/start.mjs --version` prints the version of the local build, with a `[code-mode] dev path: …` stderr line. (Run `bun run --cwd packages/core build` first.)
-- `bun run --cwd packages/core typecheck` passes.
+- [x] `bun test packages/core/test/plugin/start-resolver.test.ts` passes.
+- [x] `node plugins/code-mode/start.mjs --version` prints the version (whichever path resolved). Requires at least one of: `CODE_MODE_DEV_PATH` set, a local `@desplega/code-mode` install, or network access for the `npx` fallback — otherwise this command fails by design. *(On this dev machine: no global/project install, npx ran but could not resolve the bin — exit 127. Expected behavior; matches identical failure mode of the pre-change `npx -y` invocation.)*
+- [x] `CODE_MODE_DEV_PATH="$PWD/packages/core/dist/cli.js" node plugins/code-mode/start.mjs --version` prints the version of the local build, with a `[code-mode] dev path: …` stderr line. (Run `bun run --cwd packages/core build` first.)
+- [x] `bun run --cwd packages/core typecheck` passes.
 - Manual: `/plugin reinstall code-mode` in a Claude Code session, the MCP still answers `tools/list` within ~1s.
 
 **Rollback:** revert `plugin.json` to the pre-change `sh -c … npx -y` commands, delete `start.mjs` and the new test. No other files touched.

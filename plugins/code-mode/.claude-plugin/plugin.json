@@ -11,7 +11,7 @@
       "command": "sh",
       "args": [
         "-c",
-        "cwd=\"$PWD\" && cd / && exec npx -y @desplega/code-mode mcp --path \"$cwd\""
+        "cwd=\"$PWD\" && cd / && exec node \"${CLAUDE_PLUGIN_ROOT}/start.mjs\" mcp --path \"$cwd\""
       ]
     }
   },
@@ -22,7 +22,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "if echo \"$CLAUDE_TOOL_FILE_PATH\" | grep -q '/.code-mode/'; then cwd=\"$PWD\" && cd / && npx -y @desplega/code-mode reindex --path \"$cwd\" --paths \"$CLAUDE_TOOL_FILE_PATH\" >/dev/null 2>&1 || true; fi"
+            "command": "if echo \"$CLAUDE_TOOL_FILE_PATH\" | grep -q '/.code-mode/'; then cwd=\"$PWD\" && cd / && node \"${CLAUDE_PLUGIN_ROOT}/start.mjs\" reindex --path \"$cwd\" --paths \"$CLAUDE_TOOL_FILE_PATH\" >/dev/null 2>&1 || true; fi"
           }
         ]
       }

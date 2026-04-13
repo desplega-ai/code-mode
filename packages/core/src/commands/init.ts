@@ -9,6 +9,7 @@ import { filterTs } from "../templates/stdlib/filter.ts";
 import { fuzzyMatchTs } from "../templates/stdlib/fuzzy-match.ts";
 import { flattenTs } from "../templates/stdlib/flatten.ts";
 import { tableTs } from "../templates/stdlib/table.ts";
+import { configPath, defaultConfig, saveConfig } from "../workspace/config.ts";
 
 export interface InitOptions {
   path?: string;
@@ -82,6 +83,14 @@ export async function handler(opts: InitOptions): Promise<void> {
     const abs = join(workspace, target.rel);
     mkdirSync(dirname(abs), { recursive: true });
     writeFileSync(abs, target.content, "utf8");
+  }
+
+  // Seed a default .code-mode/config.json unless one already exists
+  // (respect user edits on re-init — `--force` above already rm'd the
+  // workspace entirely, so that path will also land here writing a fresh
+  // default).
+  if (!existsSync(configPath(targetRoot))) {
+    saveConfig(targetRoot, defaultConfig());
   }
 
   // Create an empty SQLite database file so the file header is valid.

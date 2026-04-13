@@ -4,7 +4,7 @@ date: 2026-04-13
 author: Taras (drafted with Claude)
 status: in-progress
 last_updated: 2026-04-13
-last_updated_by: Claude (Phase 1)
+last_updated_by: Claude (Phase 2)
 ---
 
 # Plan — Tool-bias hooks + stdlib expansion for the code-mode plugin
@@ -122,11 +122,11 @@ Each step either `execve`'s into the resolved entry (inheriting stdio) or falls 
 - `packages/core/test/workspace/config.test.ts` *(new)* — env override precedence, default fallthrough, invalid-value rejection, `isMcpWhitelisted` prefix matching (including the hardcoded code-mode allowance), whitelist add/remove round-trips.
 
 **Verification:**
-- `bun test packages/core/test/workspace/config.test.ts` passes.
-- `code-mode init` in a scratch dir produces a `config.json` whose `mcpWhitelist` contains the two documented defaults.
-- `code-mode config set mcpBlockMode block` mutates the file; `get` reads it back.
-- `code-mode config whitelist add mcp__github__` appends; `list` shows it; `remove` removes it.
-- `CODE_MODE_MCP_BLOCK=1 code-mode config get mcpBlockMode` prints `block` regardless of file contents.
+- [x] `bun test packages/core/test/workspace/config.test.ts` passes.
+- [x] `code-mode init` in a scratch dir produces a `config.json` whose `mcpWhitelist` contains the two documented defaults.
+- [x] `code-mode config set mcpBlockMode block` mutates the file; `get` reads it back.
+- [x] `code-mode config whitelist add mcp__github__` appends; `list` shows it; `remove` removes it.
+- [x] `CODE_MODE_MCP_BLOCK=1 code-mode config get mcpBlockMode` prints `block` regardless of file contents.
 
 **Rollback:** delete the three new files and revert `init.ts` + `cli.ts`. No schema/DB changes — `config.json` is a single throwaway file per workspace.
 

@@ -9,6 +9,13 @@ import { handler as doctorHandler } from "./commands/doctor.ts";
 import { handler as gcHandler } from "./commands/gc.ts";
 import { handler as listSdksHandler } from "./commands/listSdks.ts";
 import { handler as queryTypesHandler } from "./commands/queryTypes.ts";
+import {
+  getHandler as configGetHandler,
+  setHandler as configSetHandler,
+  whitelistAddHandler as configWhitelistAddHandler,
+  whitelistRemoveHandler as configWhitelistRemoveHandler,
+  whitelistListHandler as configWhitelistListHandler,
+} from "./commands/config.ts";
 
 export function buildProgram(): Command {
   const program = new Command();
@@ -109,6 +116,54 @@ export function buildProgram(): Command {
     .option("--apply", "Move stale scripts into .code-mode/.trash/<timestamp>/")
     .action(async (opts) => {
       await gcHandler(opts);
+    });
+
+  const configCmd = program
+    .command("config")
+    .description("Read/write .code-mode/config.json");
+
+  configCmd
+    .command("get <key>")
+    .description("Print current value of mcpBlockMode | hooksEnabled | mcpWhitelist")
+    .option("--cwd <path>", "Workspace directory (defaults to cwd)")
+    .action(async (key, opts) => {
+      await configGetHandler(key, opts);
+    });
+
+  configCmd
+    .command("set <key> <value>")
+    .description("Set mcpBlockMode (hint|block) or hooksEnabled (true|false)")
+    .option("--cwd <path>", "Workspace directory (defaults to cwd)")
+    .action(async (key, value, opts) => {
+      await configSetHandler(key, value, opts);
+    });
+
+  const whitelistCmd = configCmd
+    .command("whitelist")
+    .description("Manage the MCP tool-name whitelist");
+
+  whitelistCmd
+    .command("add <prefix>")
+    .description("Append a tool-name prefix (e.g. mcp__github__)")
+    .option("--cwd <path>", "Workspace directory (defaults to cwd)")
+    .action(async (prefix, opts) => {
+      await configWhitelistAddHandler(prefix, opts);
+    });
+
+  whitelistCmd
+    .command("remove <prefix>")
+    .description("Remove a tool-name prefix from the whitelist")
+    .option("--cwd <path>", "Workspace directory (defaults to cwd)")
+    .action(async (prefix, opts) => {
+      await configWhitelistRemoveHandler(prefix, opts);
+    });
+
+  whitelistCmd
+    .command("list")
+    .description("Print the current whitelist (one prefix per line)")
+    .option("--cwd <path>", "Workspace directory (defaults to cwd)")
+    .action(async (opts) => {
+      await configWhitelistListHandler(opts);
     });
 
   // NOTE: inspect handler is imported lazily inside the action so that the

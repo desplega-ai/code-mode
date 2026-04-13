@@ -64,8 +64,8 @@ cmd_update() {
   build_core
   log "refreshing marketplace $MARKETPLACE"
   claude plugin marketplace update "$MARKETPLACE"
-  log "updating $PLUGIN"
-  claude plugin update "$PLUGIN"
+  log "updating $PLUGIN@$MARKETPLACE"
+  claude plugin update "$PLUGIN@$MARKETPLACE"
   log "done. Restart Claude Code (or /plugin reload) to pick up changes."
 }
 

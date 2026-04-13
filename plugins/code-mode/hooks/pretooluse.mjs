@@ -122,7 +122,7 @@ async function main() {
     }
   } else if (toolName.startsWith("mcp__")) {
     // Own tools: silent pass, no dedup bump (avoid cluttering state).
-    if (toolName.startsWith("mcp__plugin_code-mode__")) {
+    if (toolName.startsWith("mcp__plugin_code-mode_")) {
       emit({});
       return;
     }

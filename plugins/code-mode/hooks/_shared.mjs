@@ -83,11 +83,11 @@ export function readConfig(cwd) {
 
 /**
  * Returns true iff `toolName` should bypass the code-mode MCP hint/block.
- * `mcp__plugin_code-mode__*` is hardcoded-allowed; otherwise passes iff
+ * `mcp__plugin_code-mode_*` is hardcoded-allowed; otherwise passes iff
  * `toolName` starts with any non-empty prefix in `cfg.mcpWhitelist`.
  */
 export function isMcpWhitelisted(toolName, cfg) {
-  if (toolName.startsWith("mcp__plugin_code-mode__")) return true;
+  if (toolName.startsWith("mcp__plugin_code-mode_")) return true;
   for (const prefix of cfg.mcpWhitelist) {
     if (!prefix || prefix.length === 0) continue;
     if (toolName.startsWith(prefix)) return true;
@@ -155,20 +155,20 @@ export const WEBFETCH_HINT = `code-mode tip: before calling WebFetch, consider t
 
 It has AbortController-based timeout, 5xx/network retries with exponential backoff, and typed JSON parsing. Copy-pasteable:
 
-  mcp__plugin_code-mode__code-mode__run({
+  mcp__plugin_code-mode_code-mode__run({
     source: "import { getJson } from '@/sdks/stdlib/fetch';\\nexport default async () => getJson<unknown>('https://example.com/api.json');"
   })
 
 Escape hatch: set CODE_MODE_SKIP=1 to silence all code-mode hooks.`;
 
-export const BASH_GENERIC_HINT = `code-mode tip: for multi-step data transforms (parse JSON, reshape, filter, fuzzy-match, render as a table), prefer a saved code-mode script over a shell pipeline. \`mcp__plugin_code-mode__code-mode__search\` first, then \`__save\` when you've built something reusable.
+export const BASH_GENERIC_HINT = `code-mode tip: for multi-step data transforms (parse JSON, reshape, filter, fuzzy-match, render as a table), prefer a saved code-mode script over a shell pipeline. \`mcp__plugin_code-mode_code-mode__search\` first, then \`__save\` when you've built something reusable.
 
 Escape hatch: CODE_MODE_SKIP=1.`;
 
 export function bashInlineExecReason(command) {
   return `code-mode: \`${truncate(command, 80)}\` looks like inline-exec (node/bun/python/ruby/perl -e, -c, or heredoc-fed script). This is exactly the throwaway-TypeScript pattern code-mode replaces.
 
-Action: call \`mcp__plugin_code-mode__code-mode__save\` with the script and a kebab-case name, then \`__run\` it. You get typecheck, reuse across sessions, and the PostToolUse reindex picks it up automatically.
+Action: call \`mcp__plugin_code-mode_code-mode__save\` with the script and a kebab-case name, then \`__run\` it. You get typecheck, reuse across sessions, and the PostToolUse reindex picks it up automatically.
 
 If you genuinely need this one-off, approve the tool call to proceed, or set CODE_MODE_SKIP=1 for the session.`;
 }
@@ -176,7 +176,7 @@ If you genuinely need this one-off, approve the tool call to proceed, or set COD
 export function mcpHintContext(toolName) {
   return `code-mode tip: \`${toolName}\` is not in your MCP whitelist.
 
-Consider whether this task is a good fit for code-mode: call \`mcp__plugin_code-mode__code-mode__search\` to see if a saved script covers it, or build one with \`__save\`. If this MCP tool is fine and you don't want this hint again:
+Consider whether this task is a good fit for code-mode: call \`mcp__plugin_code-mode_code-mode__search\` to see if a saved script covers it, or build one with \`__save\`. If this MCP tool is fine and you don't want this hint again:
 
   code-mode config whitelist add <prefix>    # e.g. mcp__github__
   # or, for a one-shot session bypass:
@@ -195,7 +195,7 @@ Fix:
   # or bypass code-mode entirely:
   CODE_MODE_SKIP=1 claude ...
 
-If the task is a good fit for code-mode, call \`mcp__plugin_code-mode__code-mode__search\` instead.`;
+If the task is a good fit for code-mode, call \`mcp__plugin_code-mode_code-mode__search\` instead.`;
 }
 
 function truncate(s, n) {

@@ -128,12 +128,12 @@ export function saveConfig(workspacePath: string, cfg: CodeModeConfig): void {
 /**
  * Returns true iff `toolName` should bypass the code-mode MCP hint/block.
  *
- * - `mcp__plugin_code-mode__*` is hardcoded-allowed.
+ * - `mcp__plugin_code-mode_*` is hardcoded-allowed.
  * - Otherwise passes iff `toolName` starts with any prefix in
  *   `cfg.mcpWhitelist`.
  */
 export function isMcpWhitelisted(toolName: string, cfg: CodeModeConfig): boolean {
-  if (toolName.startsWith("mcp__plugin_code-mode__")) return true;
+  if (toolName.startsWith("mcp__plugin_code-mode_")) return true;
   for (const prefix of cfg.mcpWhitelist) {
     if (prefix.length === 0) continue;
     if (toolName.startsWith(prefix)) return true;

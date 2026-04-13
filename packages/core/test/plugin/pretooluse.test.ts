@@ -98,7 +98,7 @@ describe("pretooluse hook — basic dispatch", () => {
     expect(r.parsed.hookSpecificOutput.additionalContext).toBeTruthy();
     expect(r.parsed.hookSpecificOutput.additionalContext).toMatch(/fetch/i);
     expect(r.parsed.hookSpecificOutput.additionalContext).toMatch(
-      /mcp__plugin_code-mode__code-mode__run/,
+      /mcp__plugin_code-mode_code-mode__run/,
     );
   });
 
@@ -236,7 +236,7 @@ describe("pretooluse hook — MCP dispatch", () => {
     });
     const r = runHook(
       {
-        tool_name: "mcp__plugin_code-mode__code-mode__search",
+        tool_name: "mcp__plugin_code-mode_code-mode__search",
         tool_input: {},
       },
       {

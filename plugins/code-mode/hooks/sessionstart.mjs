@@ -42,10 +42,10 @@ try {
 
 const additionalContext = `code-mode routing guidance:
 
-- Before writing throwaway TypeScript (inline snippets, scratch scripts, one-off transforms), call \`mcp__plugin_code-mode__code-mode__search\` first to check whether a saved script already solves the task. Reuse beats reinvention.
-- Before reaching for \`WebFetch\`, consider running the stdlib \`fetch\` helper via \`mcp__plugin_code-mode__code-mode__run\`. It has retries, timeout via AbortController, and typed JSON parsing built-in — strictly more capable than \`WebFetch\` for structured API work.
-- After writing a useful script, call \`mcp__plugin_code-mode__code-mode__save\` with a kebab-case \`name\` so future sessions can find it. The PostToolUse reindex hook handles the rest automatically.
-- Available stdlib helpers (already seeded by \`code-mode init\` under \`.code-mode/sdks/stdlib/\`): \`fetch\`, \`grep\`, \`glob\`, \`fuzzy-match\`, \`table\`, \`filter\`, \`flatten\`. Query their signatures via \`mcp__plugin_code-mode__code-mode__query_types\` or search by keyword with \`__search\`.
+- Before writing throwaway TypeScript (inline snippets, scratch scripts, one-off transforms), call \`mcp__plugin_code-mode_code-mode__search\` first to check whether a saved script already solves the task. Reuse beats reinvention.
+- Before reaching for \`WebFetch\`, consider running the stdlib \`fetch\` helper via \`mcp__plugin_code-mode_code-mode__run\`. It has retries, timeout via AbortController, and typed JSON parsing built-in — strictly more capable than \`WebFetch\` for structured API work.
+- After writing a useful script, call \`mcp__plugin_code-mode_code-mode__save\` with a kebab-case \`name\` so future sessions can find it. The PostToolUse reindex hook handles the rest automatically.
+- Available stdlib helpers (already seeded by \`code-mode init\` under \`.code-mode/sdks/stdlib/\`): \`fetch\`, \`grep\`, \`glob\`, \`fuzzy-match\`, \`table\`, \`filter\`, \`flatten\`. Query their signatures via \`mcp__plugin_code-mode_code-mode__query_types\` or search by keyword with \`__search\`.
 
 Escape hatch: set \`CODE_MODE_SKIP=1\` to bypass all code-mode hooks for the session.`;
 

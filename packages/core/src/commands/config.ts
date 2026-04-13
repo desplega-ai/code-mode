@@ -25,7 +25,7 @@ export interface BaseConfigOptions {
 const VALID_KEYS = ["mcpBlockMode", "hooksEnabled", "mcpWhitelist"] as const;
 type ConfigKey = (typeof VALID_KEYS)[number];
 
-// Loose shape — matches e.g. mcp__context7__, mcp__plugin_code-mode__,
+// Loose shape — matches e.g. mcp__context7__, mcp__plugin_code-mode_,
 // mcp__github_, etc. Rejects obvious junk like plain "github" or paths.
 const WHITELIST_PREFIX_RE = /^mcp__[a-z0-9_-]+(__[a-z0-9_-]+)*__?$/;
 

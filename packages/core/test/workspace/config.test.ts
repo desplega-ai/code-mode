@@ -170,9 +170,9 @@ describe("isMcpWhitelisted", () => {
     const cfg = defaultConfig();
     cfg.mcpWhitelist = [];
     expect(
-      isMcpWhitelisted("mcp__plugin_code-mode__code-mode__search", cfg),
+      isMcpWhitelisted("mcp__plugin_code-mode_code-mode__search", cfg),
     ).toBe(true);
-    expect(isMcpWhitelisted("mcp__plugin_code-mode__anything", cfg)).toBe(true);
+    expect(isMcpWhitelisted("mcp__plugin_code-mode_anything", cfg)).toBe(true);
   });
 
   test("prefix match against whitelist", () => {

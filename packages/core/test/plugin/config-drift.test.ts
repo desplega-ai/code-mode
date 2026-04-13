@@ -147,7 +147,7 @@ describe("config drift: isMcpWhitelisted parity", () => {
     const shared = await loadShared();
     const cfg = defaultConfig();
     cfg.mcpWhitelist = [];
-    const tool = "mcp__plugin_code-mode__code-mode__search";
+    const tool = "mcp__plugin_code-mode_code-mode__search";
     expect(shared.isMcpWhitelisted(tool, cfg)).toBe(
       coreIsMcpWhitelisted(tool, cfg),
     );

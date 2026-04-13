@@ -77,7 +77,7 @@ calls:
     `node`/`python`) get `ask` + a message recommending `save`.
     Ordinary `Bash` gets `allow` + a generic hint.
   - `mcp__*` (non-code-mode) → dispatched by the workspace config's
-    `mcpBlockMode` (see below). `mcp__plugin_code-mode__*` is always
+    `mcpBlockMode` (see below). `mcp__plugin_code-mode_*` is always
     silently allowed.
 
 Hooks are **deduped per session** (state in `$TMPDIR/code-mode-hooks-<session_id>.json`) so

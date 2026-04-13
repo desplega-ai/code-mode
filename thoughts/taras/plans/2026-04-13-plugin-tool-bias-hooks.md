@@ -4,7 +4,7 @@ date: 2026-04-13
 author: Taras (drafted with Claude)
 status: in-progress
 last_updated: 2026-04-13
-last_updated_by: Claude (Phase 2)
+last_updated_by: Claude (Phase 3)
 ---
 
 # Plan — Tool-bias hooks + stdlib expansion for the code-mode plugin
@@ -152,10 +152,10 @@ Each step either `execve`'s into the resolved entry (inheriting stdio) or falls 
 - `packages/core/test/templates/stdlib.test.ts` *(new)* — exec each new helper against a local fixture: `fetch` hits a `http.createServer` loopback, `grep` runs against a tmp dir, `glob` resolves known patterns.
 
 **Verification:**
-- `bun test` green.
-- `code-mode init` scratch dir → `.code-mode/sdks/stdlib/` contains 7 files (`fetch`, `grep`, `glob` + existing four).
-- `code-mode query-types fetch` returns the new script's exported symbols (the CLI has no top-level `search` subcommand — use `query-types` for signature search, or hit the MCP `code-mode__search` tool).
-- `code-mode run --inline .code-mode/sdks/stdlib/fetch.ts` executes successfully against a local mock (note: `run` takes `--inline <file>`, not `--file`).
+- [x] `bun test` green.
+- [x] `code-mode init` scratch dir → `.code-mode/sdks/stdlib/` contains 7 files (`fetch`, `grep`, `glob` + existing four).
+- [x] `code-mode query-types fetch` returns the new script's exported symbols (the CLI has no top-level `search` subcommand — use `query-types` for signature search, or hit the MCP `code-mode__search` tool).
+- [x] `code-mode run --inline .code-mode/sdks/stdlib/fetch.ts` executes successfully against a local mock (note: `run` takes `--inline <file>`, not `--file`). *(Ran via a tiny harness script at `.code-mode/scripts/harness.ts` that imports `@/sdks/stdlib/fetch` and calls `getJson` against a local `http.createServer`. The stdlib file itself isn't a runnable entrypoint — it only exports helpers — so a harness is the right shape; `run --inline` against a file outside `.code-mode/` can't resolve the `@/` alias.)*
 
 **Rollback:** delete the three new template files + new test + revert the `init.ts` change.
 

@@ -4,6 +4,9 @@ import {
   extractExports,
   type ExportInfo,
 } from "../../src/analysis/extract.ts";
+import { fetchTs } from "../../src/templates/stdlib/fetch.ts";
+import { grepTs } from "../../src/templates/stdlib/grep.ts";
+import { globTs } from "../../src/templates/stdlib/glob.ts";
 
 function makeProject() {
   return loadProject("/virtual", { inMemory: true });
@@ -82,6 +85,47 @@ describe("extractExports", () => {
   test("returns empty array for non-existent file", () => {
     const project = makeProject();
     expect(extractExports(project, "/virtual/missing.ts")).toEqual([]);
+  });
+
+  test("stdlib/fetch.ts template JSDoc flows through extraction", () => {
+    const project = makeProject();
+    project.createSourceFile("/virtual/stdlib/fetch.ts", fetchTs());
+    const infos = extractExports(project, "/virtual/stdlib/fetch.ts");
+    const byName = new Map(infos.map((i) => [i.name, i]));
+    expect(byName.has("getJson")).toBe(true);
+    expect(byName.has("postJson")).toBe(true);
+    expect(byName.has("fetchText")).toBe(true);
+    const getJson = byName.get("getJson")!;
+    const tags = new Map((getJson.jsdocTags ?? []).map((t) => [t.name, t.value]));
+    expect(tags.get("name")).toBe("getJson");
+    expect(tags.get("description")).toContain("GET");
+    expect(tags.get("tags")).toContain("http");
+  });
+
+  test("stdlib/grep.ts template JSDoc flows through extraction", () => {
+    const project = makeProject();
+    project.createSourceFile("/virtual/stdlib/grep.ts", grepTs());
+    const infos = extractExports(project, "/virtual/stdlib/grep.ts");
+    const byName = new Map(infos.map((i) => [i.name, i]));
+    expect(byName.has("grep")).toBe(true);
+    const grep = byName.get("grep")!;
+    const tags = new Map((grep.jsdocTags ?? []).map((t) => [t.name, t.value]));
+    expect(tags.get("name")).toBe("grep");
+    expect(tags.get("description")).toContain("pattern");
+    expect(tags.get("tags")).toContain("ripgrep");
+  });
+
+  test("stdlib/glob.ts template JSDoc flows through extraction", () => {
+    const project = makeProject();
+    project.createSourceFile("/virtual/stdlib/glob.ts", globTs());
+    const infos = extractExports(project, "/virtual/stdlib/glob.ts");
+    const byName = new Map(infos.map((i) => [i.name, i]));
+    expect(byName.has("glob")).toBe(true);
+    const glob = byName.get("glob")!;
+    const tags = new Map((glob.jsdocTags ?? []).map((t) => [t.name, t.value]));
+    expect(tags.get("name")).toBe("glob");
+    expect(tags.get("description")).toContain("pattern");
+    expect(tags.get("tags")).toContain("glob");
   });
 
   test("result is JSON-serializable (no circular refs, no raw nodes)", () => {

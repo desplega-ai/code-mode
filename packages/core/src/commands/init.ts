@@ -9,6 +9,9 @@ import { filterTs } from "../templates/stdlib/filter.ts";
 import { fuzzyMatchTs } from "../templates/stdlib/fuzzy-match.ts";
 import { flattenTs } from "../templates/stdlib/flatten.ts";
 import { tableTs } from "../templates/stdlib/table.ts";
+import { fetchTs } from "../templates/stdlib/fetch.ts";
+import { grepTs } from "../templates/stdlib/grep.ts";
+import { globTs } from "../templates/stdlib/glob.ts";
 import { configPath, defaultConfig, saveConfig } from "../workspace/config.ts";
 
 export interface InitOptions {
@@ -34,7 +37,7 @@ interface WriteTarget {
  *   - tsconfig.json          (paths: @/* -> ./*)
  *   - scripts/.keep
  *   - sdks/.keep
- *   - sdks/stdlib/{filter,fuzzy-match,flatten,table}.ts
+ *   - sdks/stdlib/{filter,fuzzy-match,flatten,table,fetch,grep,glob}.ts
  *   - sdks/.generated/.keep
  *   - code-mode.db           (empty SQLite file, via better-sqlite3)
  *
@@ -76,6 +79,9 @@ export async function handler(opts: InitOptions): Promise<void> {
     { rel: "sdks/stdlib/fuzzy-match.ts", content: fuzzyMatchTs() },
     { rel: "sdks/stdlib/flatten.ts", content: flattenTs() },
     { rel: "sdks/stdlib/table.ts", content: tableTs() },
+    { rel: "sdks/stdlib/fetch.ts", content: fetchTs() },
+    { rel: "sdks/stdlib/grep.ts", content: grepTs() },
+    { rel: "sdks/stdlib/glob.ts", content: globTs() },
     { rel: "sdks/.generated/.keep", content: "" },
   ];
 

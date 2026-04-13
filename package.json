@@ -13,7 +13,8 @@
     "plugin:install": "bash scripts/plugin.sh install",
     "plugin:install-remote": "bash scripts/plugin.sh install-remote",
     "plugin:update": "bash scripts/plugin.sh update",
-    "plugin:uninstall": "bash scripts/plugin.sh uninstall"
+    "plugin:uninstall": "bash scripts/plugin.sh uninstall",
+    "claude:run": "claude --debug --mcp-debug --allow-dangerously-skip-permissions"
   },
   "devDependencies": {
     "@types/bun": "latest",

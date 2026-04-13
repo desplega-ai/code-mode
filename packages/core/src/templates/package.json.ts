@@ -12,6 +12,12 @@ export function packageJson(): string {
     private: true,
     type: "module",
     description: "code-mode workspace — scripts + generated SDKs",
+    dependencies: {
+      // Required at runtime by `.code-mode/sdks/.generated/_client.ts`, which
+      // dynamically imports `@modelcontextprotocol/sdk/client/{index,stdio,
+      // streamableHttp}.js` whenever a generated tool wrapper is invoked.
+      "@modelcontextprotocol/sdk": "^1.0.0",
+    },
     devDependencies: {
       "bun-types": "latest",
       typescript: "^5.5.0",

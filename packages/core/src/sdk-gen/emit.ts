@@ -164,8 +164,11 @@ function assembleStarterTemplate(args: {
   const argsTypeName = `${toPascalCase(args.tool.name)}Args`;
   const placeholder = placeholderArgsLiteral(args.tool.inputSchema);
   // Relative import path from the script to the generated SDK module.
+  // Strip the `.ts` extension: the scaffolded tsconfig uses bundler resolution
+  // without `allowImportingTsExtensions`, matching the stdlib import style.
   let importRel = relative(dirname(args.scriptPath), args.sdkPath).replace(/\\/g, "/");
   if (!importRel.startsWith(".")) importRel = `./${importRel}`;
+  if (importRel.endsWith(".ts")) importRel = importRel.slice(0, -3);
 
   return `/**
  * Starter template for MCP server "${args.serverName}".
@@ -285,7 +288,7 @@ function assembleServerModule(
     ` * DO NOT EDIT — this file is overwritten on every reindex.\n` +
     ` */\n`;
 
-  const imports = `import { callTool } from "./_client.ts";\n`;
+  const imports = `import { callTool } from "./_client";\n`;
 
   const sections = codegen.map(
     (c) => `${c.inputDecl}\n\n${c.outputDecl}\n\n${c.fnDecl}`,

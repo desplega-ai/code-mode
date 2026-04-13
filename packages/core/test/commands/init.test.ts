@@ -10,7 +10,14 @@
  */
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { existsSync, mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+  mkdirSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { handler as initHandler } from "../../src/commands/init.ts";
@@ -87,6 +94,16 @@ describe("init --no-install gating", () => {
       true,
     );
     expect(existsSync(join(target, ".code-mode", "sdks", ".generated"))).toBe(true);
+
+    // Regression guard (v0.3.3, Bug B): the scaffolded package.json must
+    // declare @modelcontextprotocol/sdk as a runtime dep so generated SDKs
+    // can `import("@modelcontextprotocol/sdk/client/...")` at tool-call time.
+    const pkgPath = join(target, ".code-mode", "package.json");
+    expect(existsSync(pkgPath)).toBe(true);
+    const pkg = JSON.parse(readFileSync(pkgPath, "utf8")) as {
+      dependencies?: Record<string, string>;
+    };
+    expect(pkg.dependencies?.["@modelcontextprotocol/sdk"]).toBeDefined();
   });
 
   test("--no-install with a project-local .mcp.json still introspects (or fails non-fatally)", async () => {

@@ -8,19 +8,22 @@ under `.code-mode/` into a SQLite+FTS5 store, exposes them as MCP tools,
 and keeps the index in lockstep with disk via a Claude Code `PostToolUse`
 hook.
 
-- **Published package:** [`code-mode`](https://www.npmjs.com/package/code-mode) on npm
+- **Published package:** [`@desplega/code-mode`](https://www.npmjs.com/package/@desplega/code-mode) on npm
 - **Package source:** [`packages/core`](./packages/core)
 
 ## Install
 
 ```bash
 # one-off (no install)
-bunx code-mode --help
-npx code-mode --help
+bunx @desplega/code-mode --help
+npx @desplega/code-mode --help
 
-# global
-npm i -g code-mode
-bun add -g code-mode
+# global — the `code-mode` bin still ends up on PATH
+npm i -g @desplega/code-mode
+bun add -g @desplega/code-mode
+
+# after a global install, the bin is just `code-mode`:
+code-mode --help
 ```
 
 Requires **Node ≥ 20** or **Bun ≥ 1.1**. Some commands (`run`, `inspect`)
@@ -110,7 +113,7 @@ bundled for Node via `bun build --target=node` on `prepublishOnly`.
 cd packages/core
 bun run build          # emits dist/cli.js + dist/migrations/
 npm pack --dry-run     # inspect tarball contents
-npm publish            # publishConfig.access = public (unscoped)
+npm publish            # scoped @desplega/code-mode, publishConfig.access = public
 ```
 
 The `inspector` package is not currently published; the `code-mode

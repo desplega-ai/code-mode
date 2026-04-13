@@ -12,12 +12,15 @@ hook.
 
 ```bash
 # one-off (no install)
-bunx code-mode --help
-npx code-mode --help
+bunx @desplega/code-mode --help
+npx @desplega/code-mode --help
 
-# global
-npm i -g code-mode
-bun add -g code-mode
+# global — the `code-mode` bin still ends up on PATH
+npm i -g @desplega/code-mode
+bun add -g @desplega/code-mode
+
+# after a global install, the bin is just `code-mode`:
+code-mode --help
 ```
 
 Requires **Node ≥ 20** or **Bun ≥ 1.1**.

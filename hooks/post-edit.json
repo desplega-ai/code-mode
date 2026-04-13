@@ -18,7 +18,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "if echo \"$CLAUDE_TOOL_FILE_PATH\" | grep -q '/.code-mode/'; then npx -y code-mode reindex --paths \"$CLAUDE_TOOL_FILE_PATH\" >/dev/null 2>&1 || true; fi"
+            "command": "if echo \"$CLAUDE_TOOL_FILE_PATH\" | grep -q '/.code-mode/'; then npx -y @desplega/code-mode reindex --paths \"$CLAUDE_TOOL_FILE_PATH\" >/dev/null 2>&1 || true; fi"
           }
         ]
       }

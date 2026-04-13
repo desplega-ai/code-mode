@@ -6,6 +6,8 @@ import { handler as saveHandler } from "./commands/save.ts";
 import { handler as reindexHandler } from "./commands/reindex.ts";
 import { handler as doctorHandler } from "./commands/doctor.ts";
 import { handler as gcHandler } from "./commands/gc.ts";
+import { handler as listSdksHandler } from "./commands/listSdks.ts";
+import { handler as queryTypesHandler } from "./commands/queryTypes.ts";
 
 export function buildProgram(): Command {
   const program = new Command();
@@ -41,7 +43,26 @@ export function buildProgram(): Command {
   program
     .command("reindex")
     .description("Rebuild the SQLite+FTS5 index from disk")
+    .option("--path <path>", "Target workspace directory (defaults to cwd)")
+    .option("--paths <csv>", "Comma-separated absolute paths to re-process only")
     .action((opts) => reindexHandler(opts));
+
+  program
+    .command("list-sdks")
+    .description("List every indexed SDK")
+    .option("--path <path>", "Target workspace directory (defaults to cwd)")
+    .option("--json", "Emit JSON instead of a table")
+    .action((opts) => listSdksHandler(opts));
+
+  program
+    .command("query-types <pattern>")
+    .description("FTS5-backed search over indexed symbol signatures")
+    .option("--path <path>", "Target workspace directory (defaults to cwd)")
+    .option("--sdk <name>", "Restrict to a single SDK")
+    .option("--kind <kind>", "Restrict to a specific symbol kind (function|type|interface|class|const)")
+    .option("--limit <n>", "Maximum results to return (default 50)")
+    .option("--json", "Emit JSON instead of a table")
+    .action((pattern, opts) => queryTypesHandler(pattern, opts));
 
   program
     .command("doctor")

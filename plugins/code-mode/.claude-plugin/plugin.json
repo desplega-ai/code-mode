@@ -8,8 +8,11 @@
   "license": "MIT",
   "mcpServers": {
     "code-mode": {
-      "command": "npx",
-      "args": ["-y", "@desplega/code-mode", "mcp"]
+      "command": "sh",
+      "args": [
+        "-c",
+        "cwd=\"$PWD\" && cd / && exec npx -y @desplega/code-mode mcp --path \"$cwd\""
+      ]
     }
   },
   "hooks": {
@@ -19,7 +22,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "if echo \"$CLAUDE_TOOL_FILE_PATH\" | grep -q '/.code-mode/'; then npx -y @desplega/code-mode reindex --paths \"$CLAUDE_TOOL_FILE_PATH\" >/dev/null 2>&1 || true; fi"
+            "command": "if echo \"$CLAUDE_TOOL_FILE_PATH\" | grep -q '/.code-mode/'; then cwd=\"$PWD\" && cd / && npx -y @desplega/code-mode reindex --path \"$cwd\" --paths \"$CLAUDE_TOOL_FILE_PATH\" >/dev/null 2>&1 || true; fi"
           }
         ]
       }

@@ -66,6 +66,7 @@ export function buildProgram(): Command {
     .option("--paths <csv>", "Comma-separated absolute paths to re-process only")
     .option("--mcp-config <path>", "Explicit MCP server config file (overrides project + user)")
     .option("--no-sdk-gen", "Skip MCP SDK generation step")
+    .option("--no-templates", "Skip emission of starter scripts for newly-generated SDKs")
     .action((opts) => reindexHandler(opts));
 
   program
@@ -88,12 +89,24 @@ export function buildProgram(): Command {
   program
     .command("doctor")
     .description("Inspect workspace health and report issues")
-    .action((opts) => doctorHandler(opts));
+    .option("--path <path>", "Target workspace directory (defaults to cwd)")
+    .option("--json", "Emit JSON instead of a formatted report")
+    .option("--stale-days <n>", "Stale threshold in days (default 30)")
+    .option("--no-fail", "Always exit 0, even when broken scripts exist")
+    .action(async (opts) => {
+      await doctorHandler(opts);
+    });
 
   program
     .command("gc")
     .description("Identify stale or duplicate scripts")
-    .action((opts) => gcHandler(opts));
+    .option("--path <path>", "Target workspace directory (defaults to cwd)")
+    .option("--json", "Emit JSON instead of a formatted report")
+    .option("--stale-days <n>", "Stale threshold in days (default 30)")
+    .option("--apply", "Move stale scripts into .code-mode/.trash/<timestamp>/")
+    .action(async (opts) => {
+      await gcHandler(opts);
+    });
 
   return program;
 }

@@ -13,6 +13,13 @@ export interface SdkGenOptions {
   workspaceDir: string;
   /** Absolute path to `<workspace>/.code-mode/sdks`. */
   sdksDir: string;
+  /**
+   * Absolute path to `<workspace>/.code-mode/scripts`. Required to emit
+   * starter templates when a server's script folder is empty.
+   */
+  scriptsDir?: string;
+  /** Opt out of starter templates. Defaults to on when `scriptsDir` is set. */
+  templates?: boolean;
   /** Explicit `--mcp-config <path>` passed by the user. */
   mcpConfigPath?: string;
   /** Test override: ~/.claude.json path. */
@@ -58,6 +65,8 @@ export async function generateSdks(opts: SdkGenOptions): Promise<SdkGenReport> {
 
   const emitOpts: EmitOptions = {
     sdksDir: opts.sdksDir,
+    scriptsDir: opts.scriptsDir,
+    templates: opts.templates,
     now: opts.now,
   };
   const emit = await emitGeneratedSdks(results, emitOpts);

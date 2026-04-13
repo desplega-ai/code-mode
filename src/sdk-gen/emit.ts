@@ -14,14 +14,22 @@
  */
 
 import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join, relative } from "node:path";
 import type { McpServerSpec } from "./config.ts";
-import type { IntrospectResult } from "./introspect.ts";
+import type { IntrospectResult, IntrospectedTool } from "./introspect.ts";
 import { generateToolCode, type CodegenOptions, type ToolCodegen } from "./codegen.ts";
 
 export interface EmitOptions extends CodegenOptions {
   /** Absolute path to `<workspace>/.code-mode/sdks`. */
   sdksDir: string;
+  /**
+   * Optional absolute path to `<workspace>/.code-mode/scripts`. If provided
+   * and `templates !== false`, we drop a starter `example.ts` under
+   * `<scriptsDir>/<server>/` for every server whose folder is empty.
+   */
+  scriptsDir?: string;
+  /** Opt out of template emission (defaults to on when scriptsDir is set). */
+  templates?: boolean;
   /** Pinned timestamp for deterministic output. Defaults to now. */
   now?: () => Date;
 }
@@ -31,6 +39,8 @@ export interface EmitReport {
   clientPath: string;
   serverFiles: Array<{ server: string; path: string; toolCount: number }>;
   skipped: Array<{ server: string; reason: string }>;
+  /** Starter scripts created this run (only populated when templates ran). */
+  templatesEmitted: Array<{ server: string; path: string }>;
 }
 
 export async function emitGeneratedSdks(
@@ -52,6 +62,7 @@ export async function emitGeneratedSdks(
 
   // Write one module per successfully-introspected server.
   const registry: Record<string, RegistryEntry> = {};
+  const successful: Array<{ server: string; slug: string; tools: IntrospectedTool[]; sdkPath: string }> = [];
   for (const result of results) {
     if (!result.ok) {
       skipped.push({ server: result.spec.name, reason: result.error ?? "unknown" });
@@ -72,6 +83,7 @@ export async function emitGeneratedSdks(
       toolCount: codegen.length,
     });
     registry[result.spec.name] = specToRegistry(result.spec);
+    successful.push({ server: result.spec.name, slug, tools: result.tools, sdkPath: outPath });
   }
 
   // Shared client + registry — always written, even if no servers succeeded,
@@ -80,7 +92,160 @@ export async function emitGeneratedSdks(
   writeFileSync(clientPath, CLIENT_RUNTIME_SOURCE);
   writeFileSync(join(generatedDir, "_servers.json"), JSON.stringify(registry, null, 2));
 
-  return { generatedDir, clientPath, serverFiles, skipped };
+  // Starter templates: one example.ts per server whose scripts dir is empty.
+  // Off unless the caller gave us a scriptsDir (keeps the `emit()` fn usable
+  // without implying filesystem side effects outside `.generated/`).
+  const templatesEmitted: EmitReport["templatesEmitted"] = [];
+  const wantTemplates = opts.templates !== false && opts.scriptsDir !== undefined;
+  if (wantTemplates && opts.scriptsDir) {
+    for (const s of successful) {
+      const serverScriptsDir = join(opts.scriptsDir, s.slug);
+      if (hasAnyTsFile(serverScriptsDir)) continue;
+      mkdirSync(serverScriptsDir, { recursive: true });
+      const examplePath = join(serverScriptsDir, "example.ts");
+      const firstTool = s.tools[0]!;
+      const body = assembleStarterTemplate({
+        serverName: s.server,
+        sdkPath: s.sdkPath,
+        scriptPath: examplePath,
+        tool: firstTool,
+      });
+      writeFileSync(examplePath, body);
+      templatesEmitted.push({ server: s.server, path: examplePath });
+    }
+  }
+
+  return { generatedDir, clientPath, serverFiles, skipped, templatesEmitted };
+}
+
+/**
+ * True when `dir` exists and has at least one `.ts` file (recursively). Used
+ * to decide whether to emit a starter template — we never clobber an existing
+ * scripts directory.
+ */
+function hasAnyTsFile(dir: string): boolean {
+  if (!existsSync(dir)) return false;
+  const stack: string[] = [dir];
+  while (stack.length > 0) {
+    const cur = stack.pop()!;
+    let entries: { name: string; isDir: boolean }[] = [];
+    try {
+      entries = readdirSync(cur, { withFileTypes: true }).map((e) => ({
+        name: e.name,
+        isDir: e.isDirectory(),
+      }));
+    } catch {
+      continue;
+    }
+    for (const entry of entries) {
+      if (entry.isDir) {
+        stack.push(join(cur, entry.name));
+      } else if (entry.name.endsWith(".ts")) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * Build a starter script body. We import the first tool wrapper by its
+ * camelCased name and call it with placeholder args — the agent can fill in
+ * real values, but the file typechecks today as long as the generated SDK
+ * module compiles.
+ */
+function assembleStarterTemplate(args: {
+  serverName: string;
+  sdkPath: string;
+  scriptPath: string;
+  tool: IntrospectedTool;
+}): string {
+  const toolFnName = toCamelCase(args.tool.name);
+  const argsTypeName = `${toPascalCase(args.tool.name)}Args`;
+  const placeholder = placeholderArgsLiteral(args.tool.inputSchema);
+  // Relative import path from the script to the generated SDK module.
+  let importRel = relative(dirname(args.scriptPath), args.sdkPath).replace(/\\/g, "/");
+  if (!importRel.startsWith(".")) importRel = `./${importRel}`;
+
+  return `/**
+ * Starter template for MCP server "${args.serverName}".
+ *
+ * Generated by code-mode — safe to edit. Delete this file if you don't need
+ * the example; it won't be regenerated as long as this directory has any
+ * \`.ts\` file in it.
+ *
+ * @description Invoke ${args.serverName}.${args.tool.name} with placeholder args.
+ * @tags generated, example
+ */
+import { ${toolFnName}, type ${argsTypeName} } from "${importRel}";
+
+export default async function main(_input: unknown): Promise<unknown> {
+  const args: ${argsTypeName} = ${placeholder};
+  const result = await ${toolFnName}(args);
+  return result;
+}
+`;
+}
+
+function toCamelCase(name: string): string {
+  const parts = name
+    .split(/[^A-Za-z0-9]+/)
+    .filter(Boolean);
+  if (parts.length === 0) return "tool";
+  const head = parts[0]!.toLowerCase();
+  const tail = parts.slice(1).map(
+    (p) => p[0]!.toUpperCase() + p.slice(1).toLowerCase(),
+  );
+  return head + tail.join("");
+}
+
+function toPascalCase(name: string): string {
+  const parts = name.split(/[^A-Za-z0-9]+/).filter(Boolean);
+  if (parts.length === 0) return "Tool";
+  return parts
+    .map((p) => p[0]!.toUpperCase() + p.slice(1).toLowerCase())
+    .join("");
+}
+
+/**
+ * Produce a JSON-ish placeholder for a tool's first call. For object schemas
+ * with a `required` list, we emit `{}` with a TODO comment for each required
+ * prop — `as` cast keeps things typecheck-clean even for partial fills. For
+ * anything exotic we fall back to `{}` with a cast.
+ */
+function placeholderArgsLiteral(inputSchema: unknown): string {
+  if (!inputSchema || typeof inputSchema !== "object") {
+    return `{} as ${"never"}`;
+  }
+  const schema = inputSchema as Record<string, unknown>;
+  const required = Array.isArray(schema.required) ? (schema.required as string[]) : [];
+  const props = (schema.properties ?? {}) as Record<string, unknown>;
+  if (required.length === 0 && Object.keys(props).length === 0) {
+    return "{}";
+  }
+  const lines: string[] = ["{"];
+  for (const key of required) {
+    const propSchema = props[key] as Record<string, unknown> | undefined;
+    const val = samplePropValue(propSchema);
+    lines.push(`    ${JSON.stringify(key)}: ${val}, // TODO: fill in`);
+  }
+  if (required.length === 0) {
+    // Only optional props; still emit an empty object so code compiles.
+    return "{}";
+  }
+  lines.push("  }");
+  return lines.join("\n  ");
+}
+
+function samplePropValue(prop: Record<string, unknown> | undefined): string {
+  if (!prop) return `"" as unknown as never`;
+  const t = prop.type;
+  if (t === "string") return `""`;
+  if (t === "number" || t === "integer") return `0`;
+  if (t === "boolean") return `false`;
+  if (t === "array") return `[]`;
+  if (t === "object") return `{}`;
+  return `null as unknown as never`;
 }
 
 interface RegistryEntry {

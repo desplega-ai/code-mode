@@ -125,4 +125,58 @@ describe("sdk-gen/emit", () => {
     const rep = await emitGeneratedSdks([result], { sdksDir, now: FIXED_NOW });
     expect(rep.serverFiles[0]!.path).toContain("_scope_name_with_spaces.ts");
   });
+
+  test("emits a starter template when scriptsDir/<server>/ is empty", async () => {
+    const scriptsDir = join(tmpRoot, "scripts");
+    mkdirSync(scriptsDir, { recursive: true });
+    const rep = await emitGeneratedSdks([buildResult("github")], {
+      sdksDir,
+      scriptsDir,
+      now: FIXED_NOW,
+    });
+    expect(rep.templatesEmitted).toHaveLength(1);
+    const tmpl = rep.templatesEmitted[0]!;
+    expect(tmpl.server).toBe("github");
+    expect(existsSync(tmpl.path)).toBe(true);
+
+    const body = readFileSync(tmpl.path, "utf8");
+    expect(body).toContain(`Starter template for MCP server "github"`);
+    expect(body).toContain("createIssue"); // camelCased fn name
+    expect(body).toContain("CreateIssueArgs"); // pascal args type
+    expect(body).toContain(`"title": ""`); // required prop placeholder
+    // Import path must point back to the generated SDK module.
+    expect(body).toMatch(/from "\.\.\/.+github\.ts"/);
+  });
+
+  test("--no-templates skips starter emission", async () => {
+    const scriptsDir = join(tmpRoot, "scripts");
+    mkdirSync(scriptsDir, { recursive: true });
+    const rep = await emitGeneratedSdks([buildResult("github")], {
+      sdksDir,
+      scriptsDir,
+      templates: false,
+      now: FIXED_NOW,
+    });
+    expect(rep.templatesEmitted).toHaveLength(0);
+    expect(existsSync(join(scriptsDir, "github"))).toBe(false);
+  });
+
+  test("does not overwrite existing scripts", async () => {
+    const scriptsDir = join(tmpRoot, "scripts");
+    const serverScripts = join(scriptsDir, "github");
+    mkdirSync(serverScripts, { recursive: true });
+    writeFileSync(join(serverScripts, "custom.ts"), "// user's work\n");
+
+    const rep = await emitGeneratedSdks([buildResult("github")], {
+      sdksDir,
+      scriptsDir,
+      now: FIXED_NOW,
+    });
+    expect(rep.templatesEmitted).toHaveLength(0);
+    // User's file survives.
+    expect(readFileSync(join(serverScripts, "custom.ts"), "utf8")).toBe(
+      "// user's work\n",
+    );
+    expect(existsSync(join(serverScripts, "example.ts"))).toBe(false);
+  });
 });

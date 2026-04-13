@@ -16,6 +16,8 @@ export interface ReindexOptions {
   paths?: string;
   mcpConfig?: string;
   sdkGen?: boolean;
+  /** Commander `--no-templates` → `templates: false`. Defaults to true. */
+  templates?: boolean;
 }
 
 export async function handler(opts: ReindexOptions): Promise<void> {
@@ -34,6 +36,8 @@ export async function handler(opts: ReindexOptions): Promise<void> {
       const sdkReport = await generateSdks({
         workspaceDir: ws.workspaceDir,
         sdksDir: ws.sdksDir,
+        scriptsDir: ws.scriptsDir,
+        templates: opts.templates,
         mcpConfigPath: opts.mcpConfig,
       });
       const ok = sdkReport.emit.serverFiles.length;

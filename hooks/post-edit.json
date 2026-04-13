@@ -1,0 +1,27 @@
+{
+  "_comment": [
+    "Sample Claude Code hook for code-mode.",
+    "Re-runs `code-mode reindex --paths <changed>` whenever the agent writes or",
+    "edits a file inside a project's `.code-mode/` workspace. That keeps the",
+    "SQLite index + script status in lockstep with the on-disk source, so a",
+    "script that just broke stops surfacing in `search` results on the very",
+    "next invocation.",
+    "",
+    "Drop this JSON into `~/.claude/settings.json` (or a project's",
+    "`.claude/settings.json`) as the `hooks` key. The matcher only fires for",
+    "Write/Edit inside `.code-mode/`; unrelated edits are untouched."
+  ],
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if echo \"$CLAUDE_TOOL_FILE_PATH\" | grep -q '/.code-mode/'; then bunx -p code-mode code-mode reindex --paths \"$CLAUDE_TOOL_FILE_PATH\" >/dev/null 2>&1 || true; fi"
+          }
+        ]
+      }
+    ]
+  }
+}

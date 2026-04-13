@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "code-mode": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@desplega/code-mode@latest",
+        "mcp",
+        "--path",
+        "./workspace"
+      ]
+    }
+  }
+}

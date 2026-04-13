@@ -4,3 +4,4 @@ dist/
 .code-mode/
 bun.lockb
 *.tgz
+examples/mcp-e2e/workspace/

@@ -29,11 +29,6 @@ TS
 
 npx -y @desplega/code-mode@latest save greet --file /tmp/code-mode-e2e-hello.ts --overwrite
 
-# `init` scaffolds stdlib *files* but doesn't auto-reindex; `save` only
-# indexed the script we just added. Reindex explicitly so list_sdks /
-# query_types have something to return for the E2E.
-npx -y @desplega/code-mode@latest reindex --no-sdk-gen
-
 echo ""
 echo "[setup] workspace ready at: $WS"
 echo "[setup] run ./run.sh to launch claude -p with the MCP server attached."

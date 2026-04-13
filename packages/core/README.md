@@ -100,6 +100,19 @@ in the repo.
 `PATH`, that command is unavailable — the rest of the CLI works on plain
 Node.
 
+## Known issues
+
+**`bunx @desplega/code-mode` returns 404 on Bun 1.3.x.** Bun's `bunx`
+hits the URL-encoded scoped path (`@desplega%2fcode-mode`) which the
+npm registry rejects. Tracked upstream; no workaround inside this
+package. Use `npx -y @desplega/code-mode` or `bun add -g
+@desplega/code-mode` instead — both resolve the scope correctly.
+
+**`prebuild-install@7.1.3 deprecated` warning on install.** Transitive
+dependency of `better-sqlite3`. Cosmetic only; the native addon still
+downloads and links successfully. Waiting on `better-sqlite3` to move
+off that helper.
+
 ## Links
 
 - Source: https://github.com/desplega-ai/code-mode

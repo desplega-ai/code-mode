@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { resolve, join, dirname } from "node:path";
 import { spawnSync } from "node:child_process";
 import { openDatabase } from "../db/open.ts";
+import { reindex } from "../index/reindex.ts";
 import { tsconfigJson } from "../templates/tsconfig.json.ts";
 import { packageJson } from "../templates/package.json.ts";
 import { filterTs } from "../templates/stdlib/filter.ts";
@@ -43,7 +44,7 @@ interface WriteTarget {
  * Exits nonzero (via `process.exit(1)`) if `.code-mode/` already exists
  * and `--force` was not passed.
  */
-export function handler(opts: InitOptions): void {
+export async function handler(opts: InitOptions): Promise<void> {
   const targetRoot = resolve(opts.path ?? process.cwd());
   const workspace = join(targetRoot, ".code-mode");
   const shouldInstall = opts.install !== false;
@@ -115,6 +116,24 @@ export function handler(opts: InitOptions): void {
     }
   } else {
     console.log(`[code-mode init] skipped dependency install (--no-install).`);
+  }
+
+  // Seed the FTS + symbols index so first-use of `search` / `list-sdks` /
+  // `query-types` surfaces the scaffolded stdlib. Skip when we skipped
+  // install — reindex needs ts-morph's type resolution, which needs
+  // node_modules. The agent can still run `code-mode reindex` manually.
+  if (shouldInstall) {
+    try {
+      const report = await reindex(targetRoot);
+      console.log(
+        `[code-mode init] indexed ${report.symbolsIndexed} symbols across ${report.sdks.length} sdk(s).`,
+      );
+    } catch (err) {
+      console.error(
+        `[code-mode init] reindex failed: ${(err as Error).message}. ` +
+          `Re-run \`code-mode reindex\` inside ${workspace} to fix.`,
+      );
+    }
   }
 
   console.log(`[code-mode init] done.`);

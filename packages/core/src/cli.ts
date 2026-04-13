@@ -24,7 +24,9 @@ export function buildProgram(): Command {
     .option("--path <path>", "Target path (defaults to cwd)")
     .option("--force", "Overwrite existing .code-mode/ workspace")
     .option("--no-install", "Skip 'bun install' inside the workspace")
-    .action((opts) => initHandler(opts));
+    .action(async (opts) => {
+      await initHandler(opts);
+    });
 
   program
     .command("mcp")

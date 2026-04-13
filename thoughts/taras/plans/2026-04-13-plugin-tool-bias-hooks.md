@@ -4,7 +4,7 @@ date: 2026-04-13
 author: Taras (drafted with Claude)
 status: in-progress
 last_updated: 2026-04-13
-last_updated_by: Claude (Phase 4)
+last_updated_by: Claude (Phase 5)
 ---
 
 # Plan — Tool-bias hooks + stdlib expansion for the code-mode plugin
@@ -227,19 +227,13 @@ Single hook script, dispatched on `tool_name` from stdin. Keeps the matchers in 
   3. Compares the two resulting objects with `deepEqual`. Mismatch = failing test, which catches schema drift at CI time before it reaches production.
 
 **Verification:**
-- `bun test packages/core/test/plugin/config-drift.test.ts` passes — `_shared.mjs` `readConfig` matches core's `loadConfig` output for every representative config state.
-- `bun test packages/core/test/plugin/pretooluse.test.ts` passes. Matrix:
-  - `WebFetch` → `allow` + hint, non-empty `additionalContext`.
-  - `Bash` with `bun -e 'console.log(1)'` → `ask`, reason includes `save`.
-  - `Bash` with `ls -la` → `allow` + generic hint only.
-  - `Bash` with `python -c 'print(1)'`, `node -e ...`, `deno eval ...`, `python3 <<EOF`, `node <<< 'code'` → all `ask`.
-  - `mcp__context7__resolve-library-id` with default config (whitelisted) → `allow`, **no hint**.
-  - Same call with `CODE_MODE_MCP_BLOCK=1` → still `allow` (whitelist wins over block mode).
-  - `mcp__github__create_issue` with default config (not whitelisted) → `allow` + hint, `additionalContext` mentions `code-mode config whitelist add`.
-  - Same call with `CODE_MODE_MCP_BLOCK=1` → `deny`, reason names the tool and mentions the whitelist + `CODE_MODE_MCP_BLOCK=0` override.
-  - `mcp__plugin_code-mode__code-mode__search` → `allow`, no `additionalContext` (own tools implicitly allowed).
-  - Second call in same session with same `tool_name` → `{}` (dedup).
-  - `CODE_MODE_SKIP=1` on any call → `{}`.
+- [x] `bun test packages/core/test/plugin/config-drift.test.ts` passes — `_shared.mjs` `readConfig` matches core's `loadConfig` output for every representative config state. *(13/13 pass, 46ms.)*
+- [x] `bun test packages/core/test/plugin/pretooluse.test.ts` passes. *(14/14 pass covering the full matrix: WebFetch → allow+hint; Bash inline-exec (node/bun/deno/python/python3/ruby/perl -e/-c/--eval and node<<<'...' / python3<<EOF heredocs) → ask+reason-mentions-save; Bash `ls -la` → allow+generic hint; whitelisted context7 default and under CODE_MODE_MCP_BLOCK=1 → silent pass; non-whitelisted github default → allow+"code-mode config whitelist add" hint; non-whitelisted github + CODE_MODE_MCP_BLOCK=1 → deny with tool + whitelist + CODE_MODE_MCP_BLOCK=0; code-mode's own tool under mcpBlockMode=block + empty whitelist → silent pass; custom whitelist allows a prefix; dedup within a session → silent pass on second call; CODE_MODE_SKIP=1 → silent pass on all tools; malformed stdin → silent pass; missing tool_name → silent pass.)*
+- [x] `bun test` full suite — 186 pass / 0 fail.
+- [x] `bun run --cwd packages/core typecheck` clean.
+- [x] `plugin.json` valid JSON (jq parses).
+- [x] Manual probe: WebFetch + Bash node -e stdin payloads emit the expected `permissionDecision` / `permissionDecisionReason` / `additionalContext` shape.
+- [x] Latency: ~42ms cold for one WebFetch dispatch — under the <50ms target.
 
 **Rollback:** remove the `PreToolUse` block from `plugin.json`, delete `pretooluse.mjs` + `_shared.mjs`, delete the test.
 

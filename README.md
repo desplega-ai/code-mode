@@ -33,3 +33,19 @@ and `--no-fail` to force exit 0 in CI.
 scripts. Pass `--apply` to move stale scripts into
 `.code-mode/.trash/<timestamp>/` — nothing is ever deleted, just relocated,
 so rolling a decision back is a single `mv`.
+
+## Platform support
+
+`code-mode run` enforces execution limits via a POSIX shell wrapper:
+
+| Limit | POSIX (macOS/Linux) | Windows |
+|---|---|---|
+| `--timeout` (wall-clock) | ✅ via `AbortSignal.timeout()` | ✅ same |
+| `--max-output` (stdout/stderr cap) | ✅ always on, 1MB default | ✅ same |
+| `--max-args` (argsJson pre-check) | ✅ 256KB default | ✅ same |
+| `--max-memory` (`ulimit -v`) | ✅ Linux honours it. macOS `ulimit -v` is advisory — use with awareness. | ❌ not enforced |
+| `--max-cpu` (`ulimit -t`) | ✅ Linux honours it | ❌ not enforced |
+
+Windows users still get timeout, output, and args-size enforcement — just
+not memory or CPU caps. Treat this as MVP scope; a sandboxed runner (e2b,
+modal, or a native resource-limit shim) is the post-MVP answer.

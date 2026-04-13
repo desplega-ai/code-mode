@@ -14,7 +14,9 @@
 //      join with dist/cli.js. We resolve package.json (not the bare
 //      specifier) because the package's "main" is dist/lib.js; we need the
 //      CLI entry explicitly.
-//   4. npx -y @desplega/code-mode — cold-machine fallback.
+//   4. npx -y @desplega/code-mode@latest — cold-machine fallback
+//      (the `@latest` pin is required; bare `@desplega/code-mode` hits an
+//      npx bin-linking quirk for scoped packages — see start.mjs#runNpx).
 
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";

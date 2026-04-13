@@ -1,7 +1,7 @@
 {
   "name": "code-mode",
   "description": "Persistent, typechecked script library for coding agents. Exposes search/run/save/queryTypes/listSdks over MCP and keeps the SQLite index in sync via a PostToolUse hook.",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "author": { "name": "desplega.ai" },
   "homepage": "https://github.com/desplega-ai/code-mode",
   "repository": "https://github.com/desplega-ai/code-mode",

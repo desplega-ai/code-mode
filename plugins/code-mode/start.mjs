@@ -52,7 +52,12 @@ function runNode(scriptPath, args) {
 }
 
 function runNpx(args) {
-  const child = spawn("npx", ["-y", "@desplega/code-mode", ...args], {
+  // npm/npx quirk: bare scoped-package specs (`@scope/pkg`) fail to resolve
+  // the bin in some cache states — you get `sh: <bin>: command not found`
+  // even though the install succeeds. Pinning `@latest` forces npx through
+  // the registry metadata path, which links the bin correctly. Reproduced
+  //2026-04-13 right after publishing v0.3.3 (live E2E).
+  const child = spawn("npx", ["-y", "@desplega/code-mode@latest", ...args], {
     stdio: "inherit",
   });
   child.on("exit", (code, signal) => {

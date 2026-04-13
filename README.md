@@ -1,2 +1,3 @@
 # code-mode
-A TS based type-safe implementation of the code-mode pattern for Agent Harnesses.
+
+CLI + MCP server for typed, reusable script management. See the [implementation plan](./thoughts/taras/plans/2026-04-13-code-mode.md).

@@ -3,3 +3,4 @@ dist/
 *.db
 .code-mode/
 bun.lockb
+*.tgz

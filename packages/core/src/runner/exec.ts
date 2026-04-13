@@ -20,6 +20,8 @@
 
 import { pathToFileURL } from "node:url";
 import { resolve as resolvePath } from "node:path";
+import { spawn, type ChildProcessByStdio } from "node:child_process";
+import type { Readable } from "node:stream";
 import type { Project, SourceFile } from "ts-morph";
 import { loadProject } from "../analysis/project.ts";
 import { typecheckFile, type Diagnostic } from "../analysis/typecheck.ts";
@@ -34,6 +36,22 @@ import {
 } from "./limits.ts";
 
 export type RunReason = "ok" | "timeout" | "memory" | "cpu" | "crash";
+
+/**
+ * Map POSIX signal names to their numeric code so we can surface them
+ * through the `exitCode` path. `proc.on('exit')` in node gives a signal
+ * *name*, but downstream logic keys off numbers (SIGKILL=9, SIGXCPU=24).
+ */
+const SIGNAL_NUMBERS: Partial<Record<NodeJS.Signals, number>> = {
+  SIGHUP: 1,
+  SIGINT: 2,
+  SIGQUIT: 3,
+  SIGKILL: 9,
+  SIGTERM: 15,
+  SIGXCPU: 24,
+  SIGXFSZ: 25,
+  SIGABRT: 6,
+};
 
 export interface RunResultOk {
   success: true;
@@ -243,17 +261,28 @@ async function spawnLoader(input: SpawnInputs): Promise<RunResult> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), limits.timeoutMs);
 
-  let proc: ReturnType<typeof Bun.spawn>;
+  // Surface non-Abort spawn errors (ENOENT, EACCES, etc.) through the
+  // regular crash path rather than crashing the CLI process.
+  let spawnError: Error | null = null;
+
+  let proc: ChildProcessByStdio<null, Readable, Readable>;
   try {
-    proc = Bun.spawn(cmd, {
-      stdout: "pipe",
-      stderr: "pipe",
-      stdin: "ignore",
+    proc = spawn(cmd[0]!, cmd.slice(1), {
+      stdio: ["ignore", "pipe", "pipe"],
       env: {
         ...process.env,
         CODE_MODE_LOADER: loaderSource,
       },
       signal: controller.signal,
+    });
+    // Node emits 'error' when the AbortSignal fires, and leaving it
+    // unhandled crashes the process. We already surface the abort through
+    // controller.signal.aborted + the exit handler below, so swallowing
+    // AbortError here is correct; anything else we stash for reporting.
+    proc.on("error", (err) => {
+      if ((err as NodeJS.ErrnoException).name !== "AbortError") {
+        spawnError = err;
+      }
     });
   } catch (e) {
     clearTimeout(timer);
@@ -269,23 +298,13 @@ async function spawnLoader(input: SpawnInputs): Promise<RunResult> {
   let stdoutBuf: Uint8Array = new Uint8Array(0);
   let stderrBuf: Uint8Array = new Uint8Array(0);
 
-  const readAll = async (stream: ReadableStream<Uint8Array> | null | undefined): Promise<Uint8Array> => {
+  const readAll = async (stream: Readable | null | undefined): Promise<Uint8Array> => {
     if (!stream) return new Uint8Array(0);
-    const reader = stream.getReader();
-    const chunks: Uint8Array[] = [];
-    let total = 0;
-    const cap = limits.maxOutputBytes + 1024; // allow marker overhead
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      if (value) {
-        chunks.push(value);
-        total += value.byteLength;
-        if (total > cap) {
-          // Keep reading to drain the stream, but we'll truncate later.
-        }
-      }
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) {
+      chunks.push(chunk as Buffer);
     }
+    const total = chunks.reduce((n, c) => n + c.byteLength, 0);
     const out = new Uint8Array(total);
     let off = 0;
     for (const c of chunks) {
@@ -295,16 +314,28 @@ async function spawnLoader(input: SpawnInputs): Promise<RunResult> {
     return out;
   };
 
+  const exited: Promise<number> = new Promise((resolveExit) => {
+    proc.on("exit", (code, signal) => {
+      // Convention: unix signal gets mapped to 128+signum so we can still
+      // surface SIGXCPU (24) / SIGKILL (9) through the exit-code path.
+      if (code !== null) resolveExit(code);
+      else if (signal) {
+        const sigNum = SIGNAL_NUMBERS[signal as NodeJS.Signals] ?? 1;
+        resolveExit(128 + sigNum);
+      } else resolveExit(-1);
+    });
+  });
+
   let exitCode: number;
   let timedOut = false;
   try {
     const results = await Promise.all([
-      readAll(proc.stdout as ReadableStream<Uint8Array>),
-      readAll(proc.stderr as ReadableStream<Uint8Array>),
+      readAll(proc.stdout),
+      readAll(proc.stderr),
     ]);
     stdoutBuf = results[0];
     stderrBuf = results[1];
-    exitCode = await proc.exited;
+    exitCode = await exited;
   } catch (e) {
     const msg = (e as Error).message ?? String(e);
     if (controller.signal.aborted || /abort/i.test(msg)) {
@@ -325,6 +356,20 @@ async function spawnLoader(input: SpawnInputs): Promise<RunResult> {
 
   if (controller.signal.aborted) {
     timedOut = true;
+  }
+
+  // TS narrows `spawnError` to `never` because the only assignment lives in
+  // a proc.on('error', ...) callback that control-flow analysis can't see.
+  // The explicit cast keeps the check honest without disabling the analyzer.
+  const capturedSpawnError = spawnError as Error | null;
+  if (capturedSpawnError && !timedOut) {
+    return {
+      success: false,
+      reason: "crash",
+      error: `spawn failed: ${capturedSpawnError.message}`,
+      limits,
+      durationMs: Date.now() - started,
+    };
   }
 
   // Search for the sentinel in the full raw stdout first so we can extract

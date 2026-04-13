@@ -15,7 +15,7 @@ export function buildProgram(): Command {
   program
     .name("code-mode")
     .description("CLI + MCP server for typed, reusable script management")
-    .version("0.0.0");
+    .version("0.1.0");
 
   program
     .command("init")

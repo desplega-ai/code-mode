@@ -31,14 +31,30 @@ export function buildProgram(): Command {
     .action((opts) => mcpHandler(opts));
 
   program
-    .command("run [mode]")
+    .command("run [name]")
     .description("Execute a saved or ad-hoc script")
-    .action((mode, opts) => runHandler({ ...opts, mode }));
+    .option("--path <path>", "Target workspace directory (defaults to cwd)")
+    .option("--inline <file>", "Run an ad-hoc TS file outside .code-mode/")
+    .option("--source <stdin>", "Read TS source from stdin (use '-')")
+    .option("--args <json>", "JSON-encoded arg to pass to main(args)", "null")
+    .option("--timeout <ms>", "Wall-clock timeout in milliseconds")
+    .option("--max-memory <mb>", "Virtual memory cap (MB)")
+    .option("--max-cpu <sec>", "CPU-seconds cap")
+    .option("--max-output <bytes>", "Captured log output cap (bytes)")
+    .action(async (name, opts) => {
+      await runHandler({ ...opts, mode: name });
+    });
 
   program
-    .command("save")
+    .command("save <name>")
     .description("Persist a script to the workspace index")
-    .action((opts) => saveHandler(opts));
+    .option("--path <path>", "Target workspace directory (defaults to cwd)")
+    .option("--file <path>", "Source file to copy into .code-mode/scripts/<name>.ts")
+    .option("--source <stdin>", "Read source from stdin (use '-')")
+    .option("--overwrite", "Replace an existing script with the same name")
+    .action(async (name, opts) => {
+      await saveHandler({ ...opts, name });
+    });
 
   program
     .command("reindex")

@@ -1,20 +1,15 @@
 {
-  "name": "code-mode",
+  "name": "code-mode-monorepo",
   "version": "0.0.0",
+  "private": true,
   "type": "module",
-  "description": "CLI + MCP server for typed, reusable script management",
-  "bin": {
-    "code-mode": "./bin/code-mode.ts"
-  },
+  "description": "code-mode monorepo — core CLI + inspector workspaces",
+  "workspaces": ["packages/*"],
   "scripts": {
-    "typecheck": "tsc --noEmit",
+    "typecheck": "bun run --filter '*' typecheck",
     "test": "bun test",
-    "dev": "bun run bin/code-mode.ts"
-  },
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.0",
-    "commander": "^12.0.0",
-    "ts-morph": "^24.0.0"
+    "dev": "bun run --cwd packages/core dev",
+    "inspect": "bun run --cwd packages/inspector start"
   },
   "devDependencies": {
     "@types/bun": "latest",

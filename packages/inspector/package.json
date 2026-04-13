@@ -1,0 +1,21 @@
+{
+  "name": "@code-mode/inspector",
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Browser-based inspector for code-mode MCP servers",
+  "bin": {
+    "code-mode-inspect": "./bin/inspector.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "start": "bun run bin/inspector.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.5.0"
+  }
+}

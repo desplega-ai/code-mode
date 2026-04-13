@@ -108,6 +108,22 @@ export function buildProgram(): Command {
       await gcHandler(opts);
     });
 
+  // NOTE: inspect handler is imported lazily inside the action so that the
+  // inspector + its transitive (React, etc.) modules are NOT loaded for
+  // unrelated commands like `--help`, `mcp`, `run`.  This keeps the core
+  // cold-start fast.
+  program
+    .command("inspect")
+    .description("Launch the browser-based inspector for configured MCP servers")
+    .option("--path <path>", "Target workspace directory (defaults to cwd)")
+    .option("--port <port>", "Port to bind (default 3456; 0 = OS-assigned)", "3456")
+    .option("--host <host>", "Host to bind (default 127.0.0.1)", "127.0.0.1")
+    .option("--no-open", "Do not open the browser automatically")
+    .action(async (opts) => {
+      const mod = await import("./commands/inspect.ts");
+      await mod.handler(opts);
+    });
+
   return program;
 }
 

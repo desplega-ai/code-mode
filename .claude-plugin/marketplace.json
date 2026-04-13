@@ -10,7 +10,7 @@
       "name": "code-mode",
       "source": "./plugins/code-mode",
       "description": "MCP + hook + skill that turn throwaway agent scripts into a persistent, searchable library.",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "homepage": "https://github.com/desplega-ai/code-mode",
       "repository": "https://github.com/desplega-ai/code-mode",
       "license": "MIT",

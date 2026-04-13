@@ -125,21 +125,12 @@ async function readSource(opts: SaveOptions): Promise<string> {
     }
     return readFileSync(abs, "utf8");
   }
-  // stdin
-  const chunks: Uint8Array[] = [];
-  const stream = Bun.stdin.stream();
-  // @ts-ignore — async iterable
-  for await (const chunk of stream as unknown as AsyncIterable<Uint8Array>) {
-    chunks.push(chunk);
+  // stdin — node + bun both expose process.stdin as an async iterable of Buffer.
+  const chunks: Buffer[] = [];
+  for await (const chunk of process.stdin) {
+    chunks.push(chunk as Buffer);
   }
-  const total = chunks.reduce((n, c) => n + c.byteLength, 0);
-  const buf = new Uint8Array(total);
-  let off = 0;
-  for (const c of chunks) {
-    buf.set(c, off);
-    off += c.byteLength;
-  }
-  return new TextDecoder().decode(buf);
+  return Buffer.concat(chunks).toString("utf8");
 }
 
 function finish(opts: SaveOptions, result: SaveResult): SaveResult | void {

@@ -91,21 +91,49 @@ export function handler(opts: InitOptions): void {
   console.log(`[code-mode init] scaffolded workspace at ${workspace}`);
 
   if (shouldInstall) {
-    console.log(`[code-mode init] running 'bun install' in ${workspace}…`);
-    const result = spawnSync("bun", ["install"], {
+    const installer = pickInstaller();
+    if (!installer) {
+      console.error(
+        `[code-mode init] neither 'bun' nor 'npm' found on PATH. ` +
+          `The workspace was still scaffolded; install deps inside ${workspace} manually.`,
+      );
+      process.exit(1);
+    }
+    console.log(
+      `[code-mode init] running '${installer.cmd} ${installer.args.join(" ")}' in ${workspace}…`,
+    );
+    const result = spawnSync(installer.cmd, installer.args, {
       cwd: workspace,
       stdio: "inherit",
     });
     if (result.status !== 0) {
       console.error(
-        `[code-mode init] 'bun install' exited with status ${result.status ?? "unknown"}. ` +
-          `The workspace was still scaffolded; re-run 'bun install' inside ${workspace} manually.`,
+        `[code-mode init] '${installer.cmd} install' exited with status ${result.status ?? "unknown"}. ` +
+          `The workspace was still scaffolded; re-run the install inside ${workspace} manually.`,
       );
       process.exit(result.status ?? 1);
     }
   } else {
-    console.log(`[code-mode init] skipped 'bun install' (--no-install).`);
+    console.log(`[code-mode init] skipped dependency install (--no-install).`);
   }
 
   console.log(`[code-mode init] done.`);
+}
+
+/**
+ * Prefer `bun install` (matches our tooling defaults), fall back to `npm
+ * install` so node-only users get a working workspace too. Returns null if
+ * neither is available.
+ */
+function pickInstaller(): { cmd: string; args: string[] } | null {
+  if (hasOnPath("bun")) return { cmd: "bun", args: ["install"] };
+  if (hasOnPath("npm")) return { cmd: "npm", args: ["install", "--silent"] };
+  return null;
+}
+
+function hasOnPath(binary: string): boolean {
+  const probe = spawnSync(process.platform === "win32" ? "where" : "which", [binary], {
+    stdio: "ignore",
+  });
+  return probe.status === 0;
 }

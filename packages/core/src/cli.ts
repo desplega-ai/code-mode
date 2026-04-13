@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { VERSION } from "./version.ts";
 import { handler as initHandler } from "./commands/init.ts";
 import { handler as mcpHandler } from "./commands/mcp.ts";
 import { handler as runHandler } from "./commands/run.ts";
@@ -15,7 +16,7 @@ export function buildProgram(): Command {
   program
     .name("code-mode")
     .description("CLI + MCP server for typed, reusable script management")
-    .version("0.1.0");
+    .version(VERSION);
 
   program
     .command("init")

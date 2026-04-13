@@ -17,6 +17,7 @@
 
 import type { Database } from "better-sqlite3";
 import { openDatabase } from "../db/open.ts";
+import { VERSION } from "../version.ts";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import {
   CallToolRequestSchema,
@@ -43,7 +44,7 @@ export function createServer(opts: CreateServerOptions): Server {
   const server = new Server(
     {
       name: "code-mode",
-      version: "0.1.0",
+      version: VERSION,
     },
     {
       capabilities: {

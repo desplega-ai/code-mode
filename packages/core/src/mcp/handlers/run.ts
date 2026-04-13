@@ -15,6 +15,7 @@ import { isAbsolute, join, resolve as resolvePath } from "node:path";
 import { execScript, type RunResult } from "../../runner/exec.ts";
 import { resolveWorkspacePaths } from "../../index/reindex.ts";
 import { updateUsageCounter } from "../../commands/run.ts";
+import { normalizeScriptSource } from "../../analysis/normalize.ts";
 
 export type RunMode = "named" | "inline" | "stdin";
 
@@ -53,7 +54,8 @@ export async function handleRun(
     }
     const tmp = mkdtempSync(join(tmpdir(), "code-mode-mcp-run-"));
     entry = join(tmp, "inline.ts");
-    writeFileSync(entry, args.source, "utf8");
+    const normalized = normalizeScriptSource(args.source);
+    writeFileSync(entry, normalized.source, "utf8");
     cleanup = () => {
       try {
         rmSync(tmp, { recursive: true, force: true });

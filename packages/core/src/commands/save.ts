@@ -10,6 +10,7 @@ import { existsSync, readFileSync, writeFileSync, unlinkSync, mkdirSync } from "
 import { dirname, isAbsolute, join, resolve as resolvePath } from "node:path";
 import { loadProject } from "../analysis/project.ts";
 import { typecheckFile, type Diagnostic } from "../analysis/typecheck.ts";
+import { normalizeScriptSource } from "../analysis/normalize.ts";
 import { reindex, resolveWorkspacePaths } from "../index/reindex.ts";
 
 export interface SaveOptions {
@@ -27,6 +28,8 @@ export interface SaveResult {
   path?: string;
   diagnostics?: Diagnostic[];
   error?: string;
+  /** Normalizer notes (e.g. stripped fence, removed shebang). Absent when no changes were applied. */
+  normalized?: string[];
 }
 
 export async function handler(opts: SaveOptions): Promise<SaveResult | void> {
@@ -46,7 +49,9 @@ export async function handler(opts: SaveOptions): Promise<SaveResult | void> {
     });
   }
 
-  const source = await readSource(opts);
+  const rawSource = await readSource(opts);
+  const normalized = normalizeScriptSource(rawSource);
+  const source = normalized.source;
   const fileName = opts.name.endsWith(".ts") ? opts.name : `${opts.name}.ts`;
   const savedPath = isAbsolute(fileName)
     ? fileName
@@ -56,6 +61,7 @@ export async function handler(opts: SaveOptions): Promise<SaveResult | void> {
     return finish(opts, {
       success: false,
       error: `script already exists: ${savedPath} (pass --overwrite to replace)`,
+      ...(normalized.changed ? { normalized: normalized.notes } : {}),
     });
   }
 
@@ -97,6 +103,7 @@ export async function handler(opts: SaveOptions): Promise<SaveResult | void> {
     return finish(opts, {
       success: false,
       diagnostics,
+      ...(normalized.changed ? { normalized: normalized.notes } : {}),
     });
   }
 
@@ -108,12 +115,14 @@ export async function handler(opts: SaveOptions): Promise<SaveResult | void> {
       success: false,
       path: savedPath,
       error: `reindex failed: ${(e as Error).message}`,
+      ...(normalized.changed ? { normalized: normalized.notes } : {}),
     });
   }
 
   return finish(opts, {
     success: true,
     path: savedPath,
+    ...(normalized.changed ? { normalized: normalized.notes } : {}),
   });
 }
 

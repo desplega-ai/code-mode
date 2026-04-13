@@ -18,6 +18,7 @@ import { execScript, type RunResult } from "../runner/exec.ts";
 import { resolveWorkspacePaths } from "../index/reindex.ts";
 import { migrate } from "../db/migrate.ts";
 import { getScript } from "../db/repo.ts";
+import { normalizeScriptSource } from "../analysis/normalize.ts";
 
 export interface RunOptions {
   mode?: string; // positional "name" arg from Commander
@@ -106,9 +107,10 @@ async function resolveEntry(
 
   if (opts.source === "-" || opts.source === true) {
     const src = await readStdin();
+    const normalized = normalizeScriptSource(src);
     const tmp = mkdtempSync(join(tmpdir(), "code-mode-run-"));
     const file = join(tmp, "inline.ts");
-    writeFileSync(file, src, "utf8");
+    writeFileSync(file, normalized.source, "utf8");
     return {
       entryAbs: file,
       cleanup: () => {

@@ -1,5 +1,7 @@
 # code-mode
 
+> **Experimental** — `0.x`. The API (CLI flags, MCP tool shapes, library exports) may change between minor releases until `1.0`.
+>
 > CLI + MCP server for typed, reusable script management.
 
 `code-mode` turns throwaway agent scripts into a typechecked, searchable,

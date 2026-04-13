@@ -28,7 +28,10 @@ export function buildProgram(): Command {
   program
     .command("mcp")
     .description("Run code-mode as an MCP server over stdio")
-    .action((opts) => mcpHandler(opts));
+    .option("--path <path>", "Target workspace directory (defaults to cwd)")
+    .action(async (opts) => {
+      await mcpHandler(opts);
+    });
 
   program
     .command("run [name]")

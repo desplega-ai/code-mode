@@ -1,0 +1,10 @@
+{
+  "github": {
+    "transport": "stdio",
+    "command": "bun",
+    "args": [
+      "run",
+      "gh.ts"
+    ]
+  }
+}

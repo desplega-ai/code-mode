@@ -61,6 +61,8 @@ export function buildProgram(): Command {
     .description("Rebuild the SQLite+FTS5 index from disk")
     .option("--path <path>", "Target workspace directory (defaults to cwd)")
     .option("--paths <csv>", "Comma-separated absolute paths to re-process only")
+    .option("--mcp-config <path>", "Explicit MCP server config file (overrides project + user)")
+    .option("--no-sdk-gen", "Skip MCP SDK generation step")
     .action((opts) => reindexHandler(opts));
 
   program

@@ -176,7 +176,15 @@ If you genuinely need this one-off, approve the tool call to proceed, or set COD
 export function mcpHintContext(toolName) {
   return `code-mode tip: \`${toolName}\` is not in your MCP whitelist.
 
-Consider whether this task is a good fit for code-mode: call \`mcp__plugin_code-mode_code-mode__search\` to see if a saved script covers it, or build one with \`__save\`. If this MCP tool is fine and you don't want this hint again:
+If this task can be done with HTTP / shell / filesystem / data transforms, prefer writing a code-mode script using stdlib helpers in \`.code-mode/sdks/stdlib/\` (\`fetch\`, \`grep\`, \`glob\`, \`table\`, \`filter\`, \`flatten\`, \`fuzzy-match\`):
+
+  mcp__plugin_code-mode_code-mode__run({ source: "..." })
+  # or save+reuse:
+  mcp__plugin_code-mode_code-mode__save({ name: "...", source: "..." })
+
+\`mcp__plugin_code-mode_code-mode__search\` only finds *existing* saved scripts — use it before authoring new ones.
+
+If this MCP tool is fine and you don't want this hint again:
 
   code-mode config whitelist add <prefix>    # e.g. mcp__github__
   # or, for a one-shot session bypass:
@@ -188,14 +196,24 @@ To tighten the default from hint → block: \`code-mode config set mcpBlockMode 
 export function mcpBlockReason(toolName) {
   return `code-mode: \`${toolName}\` is not whitelisted and mcpBlockMode=block.
 
-Fix:
+If this task can be done with HTTP / shell / filesystem / data transforms,
+write a code-mode script instead:
+
+  mcp__plugin_code-mode_code-mode__run({ source: "..." })
+  # or save+reuse:
+  mcp__plugin_code-mode_code-mode__save({ name: "...", source: "..." })
+
+Stdlib helpers in .code-mode/sdks/stdlib/: fetch, grep, glob, table, filter,
+flatten, fuzzy-match. Check for existing scripts with
+mcp__plugin_code-mode_code-mode__search first (search only finds *existing*
+saved scripts — don't give up if it returns nothing).
+
+If the MCP is fine and you don't want this denied:
   code-mode config whitelist add <prefix>    # e.g. ${guessPrefix(toolName)}
-  # or drop block mode for this session:
+  # or for one session:
   CODE_MODE_MCP_BLOCK=0 claude ...
   # or bypass code-mode entirely:
-  CODE_MODE_SKIP=1 claude ...
-
-If the task is a good fit for code-mode, call \`mcp__plugin_code-mode_code-mode__search\` instead.`;
+  CODE_MODE_SKIP=1 claude ...`;
 }
 
 function truncate(s, n) {

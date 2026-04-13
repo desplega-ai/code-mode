@@ -2,7 +2,8 @@ import { existsSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { resolve, join, dirname } from "node:path";
 import { spawnSync } from "node:child_process";
 import { openDatabase } from "../db/open.ts";
-import { reindex } from "../index/reindex.ts";
+import { reindex, resolveWorkspacePaths } from "../index/reindex.ts";
+import { generateSdks } from "../sdk-gen/index.ts";
 import { tsconfigJson } from "../templates/tsconfig.json.ts";
 import { packageJson } from "../templates/package.json.ts";
 import { filterTs } from "../templates/stdlib/filter.ts";
@@ -133,10 +134,41 @@ export async function handler(opts: InitOptions): Promise<void> {
     console.log(`[code-mode init] skipped dependency install (--no-install).`);
   }
 
-  // Seed the FTS + symbols index so first-use of `search` / `list-sdks` /
-  // `query-types` surfaces the scaffolded stdlib. Skip when we skipped
-  // install — reindex needs ts-morph's type resolution, which needs
-  // node_modules. The agent can still run `code-mode reindex` manually.
+  // Reindex is split into two gating tiers because they have different
+  // dependency profiles:
+  //   1. MCP SDK generation (`generateSdks`) — pure stdio introspection of
+  //      registered MCP servers + codegen. No ts-morph, no node_modules
+  //      needed. Always safe to run, even under --no-install.
+  //   2. Symbol/script indexing (`reindex`) — walks the workspace and uses
+  //      ts-morph's type resolution, which requires node_modules to exist.
+  //      Skipped under --no-install; the agent can run `code-mode reindex`
+  //      manually after `bun install`.
+  // Going with option (a)-ish from the v0.3.2 spec: keep the existing
+  // `reindex()` API (it's already disk-only) and just call `generateSdks()`
+  // separately first. No new flag needed.
+
+  const ws = resolveWorkspacePaths(targetRoot);
+  let mcpSdkCount = 0;
+  try {
+    const sdkReport = await generateSdks({
+      workspaceDir: ws.workspaceDir,
+      sdksDir: ws.sdksDir,
+      scriptsDir: ws.scriptsDir,
+    });
+    mcpSdkCount = sdkReport.emit.serverFiles.length;
+    const skipped = sdkReport.emit.skipped.length;
+    console.log(
+      `[code-mode init] generated ${mcpSdkCount} MCP SDK(s) (${skipped} skipped).`,
+    );
+  } catch (err) {
+    // Some MCP servers fail with auth errors (github, figma need OAuth).
+    // Non-fatal — the agent can re-run reindex once auth is sorted.
+    console.error(
+      `[code-mode init] MCP SDK generation failed: ${(err as Error).message}. ` +
+        `Re-run \`code-mode reindex\` inside ${workspace} to retry.`,
+    );
+  }
+
   if (shouldInstall) {
     try {
       const report = await reindex(targetRoot);
@@ -149,6 +181,11 @@ export async function handler(opts: InitOptions): Promise<void> {
           `Re-run \`code-mode reindex\` inside ${workspace} to fix.`,
       );
     }
+  } else {
+    console.log(
+      `[code-mode init] generated ${mcpSdkCount} MCP SDK(s). ` +
+        `Run 'code-mode reindex' after 'bun install' to index symbols.`,
+    );
   }
 
   console.log(`[code-mode init] done.`);

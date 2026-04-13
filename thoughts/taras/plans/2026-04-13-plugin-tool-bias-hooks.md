@@ -4,7 +4,7 @@ date: 2026-04-13
 author: Taras (drafted with Claude)
 status: in-progress
 last_updated: 2026-04-13
-last_updated_by: Claude (Phase 3)
+last_updated_by: Claude (Phase 4)
 ---
 
 # Plan — Tool-bias hooks + stdlib expansion for the code-mode plugin
@@ -184,8 +184,10 @@ Each step either `execve`'s into the resolved entry (inheriting stdio) or falls 
 - `plugins/code-mode/.claude-plugin/plugin.json` — add `SessionStart` hook entry invoking the `.mjs`.
 
 **Verification:**
-- `node plugins/code-mode/hooks/sessionstart.mjs < /dev/null | jq .hookSpecificOutput.additionalContext` prints the routing text.
-- With `CODE_MODE_SKIP=1`, same command prints `null`.
+- [x] `node plugins/code-mode/hooks/sessionstart.mjs < /dev/null | jq .hookSpecificOutput.additionalContext` prints the routing text. *(Mentions `search`, `run`, `save`, `fetch`, and all 7 stdlib helper names: `fetch`, `grep`, `glob`, `fuzzy-match`, `table`, `filter`, `flatten`.)*
+- [x] With `CODE_MODE_SKIP=1`, same command prints `{}` (full object suppressed; `jq .hookSpecificOutput.additionalContext` would print `null` by projection).
+- [x] Measured latency ~40ms cold — under the <50ms target.
+- [x] `plugin.json` valid JSON; `SessionStart` hook registered alongside existing `PostToolUse`.
 - `/plugin reload` in a Claude Code session, start a fresh conversation, ask "what's the best way to summarise a JSON response from an API?" → model should mention code-mode / the `fetch` helper without being prompted.
 
 **Rollback:** remove the `SessionStart` block from `plugin.json` and delete the `.mjs`.

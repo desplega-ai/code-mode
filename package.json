@@ -15,7 +15,9 @@
     "plugin:install-remote": "bash scripts/plugin.sh install-remote",
     "plugin:update": "bash scripts/plugin.sh update",
     "plugin:uninstall": "bash scripts/plugin.sh uninstall",
-    "claude:run": "claude --debug --mcp-debug --allow-dangerously-skip-permissions"
+    "claude:run": "claude --debug --mcp-debug --allow-dangerously-skip-permissions",
+    "release": "bash scripts/release.sh",
+    "release:dry": "bash scripts/release.sh dry"
   },
   "devDependencies": {
     "@types/bun": "latest",

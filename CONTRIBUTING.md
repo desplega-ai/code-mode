@@ -169,6 +169,52 @@ CODE_MODE_DEV_PATH="$PWD/packages/core/dist/cli.js" \
 Unset `CODE_MODE_DEV_PATH` when you're done so the plugin goes back to
 whichever install is on disk.
 
+### Iterating on hooks (`SessionStart`, `PreToolUse`)
+
+The plugin ships two hook scripts under `plugins/code-mode/hooks/`:
+
+- `sessionstart.mjs` — emits a static routing block.
+- `pretooluse.mjs` — dispatcher for `WebFetch` / `Bash` / `mcp__.*`.
+
+Both are plain Node scripts that read JSON from stdin and emit JSON on
+stdout, so you can iterate on them without reloading the plugin:
+
+```bash
+# SessionStart — no stdin needed
+node plugins/code-mode/hooks/sessionstart.mjs < /dev/null | jq .
+
+# PreToolUse — craft a tool call payload and pipe it in
+echo '{"tool_name":"Bash","tool_input":{"command":"node -e 1"}}' \
+  | node plugins/code-mode/hooks/pretooluse.mjs | jq .
+echo '{"tool_name":"WebFetch","tool_input":{"url":"https://example.com"}}' \
+  | node plugins/code-mode/hooks/pretooluse.mjs | jq .
+echo '{"tool_name":"mcp__github__list_issues","tool_input":{}}' \
+  | node plugins/code-mode/hooks/pretooluse.mjs | jq .
+```
+
+The dedup state is keyed by `session_id`, so pass distinct IDs between
+runs if you want to see the first-hit behaviour:
+
+```bash
+echo '{"tool_name":"WebFetch","session_id":"dev-'"$(date +%s)"'","tool_input":{}}' \
+  | node plugins/code-mode/hooks/pretooluse.mjs | jq .
+```
+
+`CODE_MODE_SKIP=1` short-circuits both scripts to an empty object — use
+it when you're debugging an unrelated bug and want hooks out of the way.
+
+### Claude Code plugin matchers
+
+The plugin's `plugin.json` uses regex-style matchers (confirmed working):
+
+- `Write|Edit|MultiEdit` — the existing `PostToolUse` reindex matcher.
+- `mcp__.*` — the new `PreToolUse` matcher that catches every MCP tool
+  and lets the dispatcher filter inside the hook script.
+
+If you add a new matcher, the hook script still gets the raw
+`tool_name` in stdin — dispatch there rather than duplicating matcher
+logic in `plugin.json`.
+
 ## Repo layout
 
 See the root [README.md](./README.md#repository-layout) for the full tree.

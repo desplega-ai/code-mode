@@ -2,9 +2,9 @@
 title: Bias the code-mode plugin to prefer code-mode scripts over native Claude Code tools
 date: 2026-04-13
 author: Taras (drafted with Claude)
-status: in-progress
+status: completed
 last_updated: 2026-04-13
-last_updated_by: Claude (Phase 5)
+last_updated_by: Claude (Phase 6)
 ---
 
 # Plan — Tool-bias hooks + stdlib expansion for the code-mode plugin
@@ -246,7 +246,12 @@ Single hook script, dispatched on `tool_name` from stdin. Keeps the matchers in 
 - Bump `plugins/code-mode/.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json` versions to `0.3.0` (both manifests are already at `0.2.0` on disk; this is a minor bump on top — non-breaking behaviour change, existing users just see hints). Also bump `packages/core/package.json` to `0.3.0` to keep the three in lockstep.
 - Add a `thoughts/taras/qa/2026-04-13-plugin-tool-bias.md` QA report skeleton to be filled in during manual E2E.
 
-**Verification:** versions match across `plugins/code-mode/.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, and `packages/core/package.json`; `bun run --cwd packages/core typecheck` clean.
+**Verification:**
+- [x] Versions match at `0.3.0` across `plugins/code-mode/.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json` (both the top-level `metadata.version` and the `plugins[].version` entry), and `packages/core/package.json`.
+- [x] `bun run --cwd packages/core typecheck` clean.
+- [x] `bun test` full suite — 186 pass / 1 skip / 0 fail (no regression from Phase 5).
+- [x] `bun run --cwd packages/core build` clean — `dist/cli.js` (127.58 KB) + `dist/lib.js` (15.48 KB) + `dist/types/` emitted.
+- [x] `jq . plugins/code-mode/.claude-plugin/plugin.json` and `jq . .claude-plugin/marketplace.json` — both parse.
 
 **Rollback:** trivial — revert the bump + README edits.
 

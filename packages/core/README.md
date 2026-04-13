@@ -68,8 +68,35 @@ code-mode inspect
 | `gc` | Surface stale / duplicate scripts; `--apply` moves them to `.code-mode/.trash/`. |
 | `mcp` | Run code-mode as an MCP server over stdio. |
 | `inspect` | Launch the browser-based inspector for configured MCP servers. |
+| `config get/set` | Read/write workspace `.code-mode/config.json`. |
+| `config whitelist add/remove/list` | Manage the MCP-allow prefix list. |
 
 Run `code-mode <command> --help` for the full flag list.
+
+## Workspace config
+
+`code-mode init` writes `.code-mode/config.json` with sane defaults:
+
+```json
+{
+  "mcpBlockMode": "hint",
+  "mcpWhitelist": ["mcp__context7__", "mcp__plugin_context-mode_"],
+  "hooksEnabled": true
+}
+```
+
+The Claude Code plugin's `PreToolUse` hook reads this file to decide
+whether to hint or deny non-whitelisted MCP tool calls. Env overrides:
+`CODE_MODE_MCP_BLOCK=1` → force `block`, `CODE_MODE_MCP_BLOCK=0` →
+force `hint`, `CODE_MODE_SKIP=1` → bypass all hooks.
+
+## Stdlib helpers
+
+`code-mode init` seeds seven helpers under `.code-mode/sdks/stdlib/`:
+`fetch`, `grep`, `glob`, `fuzzy-match`, `table`, `filter`, `flatten`.
+`fetch` has 30s timeout + retries + typed JSON parsing; `grep` wraps
+ripgrep; `glob` uses `fs.glob` (Node 22+) with a Bun-compatible
+fallback.
 
 ## Claude Code integration
 

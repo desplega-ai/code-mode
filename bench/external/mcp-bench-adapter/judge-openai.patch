@@ -1,0 +1,47 @@
+diff --git a/benchmark/runner.py b/benchmark/runner.py
+index 3652255..aacb005 100644
+--- a/benchmark/runner.py
++++ b/benchmark/runner.py
+@@ -27,7 +27,7 @@ from typing import Dict, List, Any, Optional
+ # Add parent directory to Python path to resolve imports
+ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+ 
+-from openai import AsyncAzureOpenAI
++from openai import AsyncAzureOpenAI, AsyncOpenAI
+ 
+ from agent.executor import TaskExecutor
+ from agent.claude_code_executor import ClaudeCodeExecutor
+@@ -428,14 +428,26 @@ class BenchmarkRunner:
+         if timeout_seconds is None:
+             timeout_seconds = config_loader.get_task_timeout()
+         
+-        # Initialize judge provider once for this task execution
++        # Initialize judge provider once for this task execution.
++        # Patched: prefer regular OpenAI (or any OpenAI-compatible base_url) when
++        # OPENAI_API_KEY is set; fall back to Azure when only Azure creds are
++        # available. Judge model is JUDGE_MODEL (default: o4-mini for upstream
++        # comparability; switch to gpt-5-mini etc. via env).
+         if not hasattr(self, '_judge_provider') or self._judge_provider is None:
+-            azure_client = AsyncAzureOpenAI(
+-                azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+-                api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+-                api_version=config_loader.get_azure_api_version()
+-            )
+-            self._judge_provider = LLMProvider(azure_client, "o4-mini", "azure")
++            judge_model = os.getenv("JUDGE_MODEL", "o4-mini")
++            if os.getenv("OPENAI_API_KEY"):
++                openai_client = AsyncOpenAI(
++                    api_key=os.getenv("OPENAI_API_KEY"),
++                    base_url=os.getenv("OPENAI_BASE_URL") or None,
++                )
++                self._judge_provider = LLMProvider(openai_client, judge_model, "openai_compatible")
++            else:
++                azure_client = AsyncAzureOpenAI(
++                    azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
++                    api_key=os.getenv("AZURE_OPENAI_API_KEY"),
++                    api_version=config_loader.get_azure_api_version()
++                )
++                self._judge_provider = LLMProvider(azure_client, judge_model, "azure")
+         
+         # Step 1: Prepare task execution information
+         task_execution_info = await self._prepare_task_execution(task_info)

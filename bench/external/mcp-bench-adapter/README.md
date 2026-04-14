@@ -32,9 +32,13 @@ export CLAUDE_CODE_TIMEOUT_S=300
 # alone doesn't register PreToolUse hooks, so we wire it directly).
 export CODE_MODE_PLUGIN_DIR=/path/to/code-mode/plugins/code-mode
 
-# Judge (untouched from upstream MCP-Bench)
-export AZURE_OPENAI_API_KEY=...
-export AZURE_OPENAI_ENDPOINT=...
+# Judge — pick ONE of:
+#  (a) regular OpenAI (recommended; requires applying judge-openai.patch).
+export OPENAI_API_KEY=...
+export JUDGE_MODEL=gpt-5-mini   # or any chat-completions model your key has
+#  (b) Azure OpenAI (upstream default — leaderboard-comparable with o4-mini).
+# export AZURE_OPENAI_API_KEY=...
+# export AZURE_OPENAI_ENDPOINT=...
 
 # Per-task MCP server keys (see mcp_servers/api_key)
 ```
@@ -50,8 +54,13 @@ cd mcp-bench
 cp /path/to/code-mode/bench/external/mcp-bench-adapter/claude_code_executor.py agent/
 cp /path/to/code-mode/bench/external/mcp-bench-adapter/claude_code_provider.py llm/
 
-# 3. Apply the patch to factory.py + runner.py.
+# 3. Apply the patches (order matters: upstream first, then optional ones).
 git apply /path/to/code-mode/bench/external/mcp-bench-adapter/upstream.patch
+# Required if you'll run with --distraction-count 0 (upstream bug — commands_config
+# is referenced unconditionally but only loaded when distractions are enabled).
+git apply /path/to/code-mode/bench/external/mcp-bench-adapter/mcpbench-bugfix.patch
+# Optional: swap judge from Azure to regular OpenAI (parameterizable via JUDGE_MODEL env).
+git apply /path/to/code-mode/bench/external/mcp-bench-adapter/judge-openai.patch
 
 # 4. Install MCP-Bench's 28 MCP servers + Python deps (~10 min).
 conda create -n mcpbench python=3.10

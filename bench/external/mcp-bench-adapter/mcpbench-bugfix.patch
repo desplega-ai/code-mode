@@ -1,0 +1,17 @@
+diff --git a/benchmark/runner.py b/benchmark/runner.py
+--- a/benchmark/runner.py
++++ b/benchmark/runner.py
+@@ -946,12 +946,12 @@ class BenchmarkRunner:
+         tasks = await self.load_tasks()
+         servers_info = await self.load_server_configs()
+
+-        # Load commands configuration for distraction servers
+-        if self.enable_distraction_servers:
+-            self.commands_config = await self.load_commands_config()
++        # Load commands configuration: required by _prepare_server_configs
++        # unconditionally (line ~889), so always load — it's tiny.
++        self.commands_config = await self.load_commands_config()
++        if self.enable_distraction_servers:
+             logger.info(f"Distraction servers enabled: will connect {self.distraction_count} additional servers")
+         else:
+             logger.info("Distraction servers disabled")

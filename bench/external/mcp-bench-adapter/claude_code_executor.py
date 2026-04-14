@@ -34,20 +34,27 @@ logger = logging.getLogger(__name__)
 
 def _build_mcp_json(server_configs: List[Dict[str, Any]], repo_root: Path,
                     include_code_mode: bool) -> Dict[str, Any]:
-    """Translate MCP-Bench's commands.json entries into Claude Code's
-    .mcp.json schema. `repo_root` is the mcp-bench checkout so we can
-    resolve `cwd: ../foo` relative paths to absolute ones."""
+    """Translate MCP-Bench's *normalized* server_configs into Claude Code's
+    .mcp.json schema. Shape produced by `BenchmarkRunner.map_server_name_to_config`:
+      - name: str
+      - command: list[str] (already split)
+      - env: dict[str, str] (already populated with secret values)
+      - cwd: str — usually `mcp_servers/<dir>` relative to repo root
+      - transport: 'http' (optional) + port + endpoint
+    `repo_root` is the mcp-bench checkout so we can resolve relative cwds."""
     servers: Dict[str, Any] = {}
     for cfg in server_configs:
         name = cfg["name"]
         # Sanitise — Claude Code's mcp_<name>__ namespace requires non-spaces.
         key = name.replace(" ", "_").replace("/", "_")
 
-        cwd_rel = cfg.get("cwd")
-        cwd_abs = str((repo_root / cwd_rel).resolve()) if cwd_rel else None
+        cwd_rel = cfg.get("cwd") or ""
+        if cwd_rel and not Path(cwd_rel).is_absolute():
+            cwd_abs = str((repo_root / cwd_rel).resolve())
+        else:
+            cwd_abs = cwd_rel or None
 
-        env_keys = cfg.get("env") or []
-        env_map = {k: os.environ[k] for k in env_keys if k in os.environ}
+        env_map = cfg.get("env") or {}
 
         if cfg.get("transport") == "http":
             port = cfg.get("port")
@@ -55,14 +62,13 @@ def _build_mcp_json(server_configs: List[Dict[str, Any]], repo_root: Path,
             servers[key] = {"type": "http", "url": f"http://localhost:{port}{endpoint}"}
             continue
 
-        # stdio: split cmd into command + args.
-        parts = cfg["cmd"].split()
-        if not parts:
+        cmd_parts = cfg.get("command") or []
+        if not cmd_parts:
             continue
         servers[key] = {
-            "command": parts[0],
-            "args": parts[1:],
-            **({"env": env_map} if env_map else {}),
+            "command": cmd_parts[0],
+            "args": list(cmd_parts[1:]),
+            **({"env": dict(env_map)} if env_map else {}),
             **({"cwd": cwd_abs} if cwd_abs else {}),
         }
 

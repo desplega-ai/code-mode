@@ -62,13 +62,60 @@ def _build_mcp_json(server_configs: List[Dict[str, Any]], repo_root: Path,
             servers[key] = {"type": "http", "url": f"http://localhost:{port}{endpoint}"}
             continue
 
-        cmd_parts = cfg.get("command") or []
+        cmd_parts = list(cfg.get("command") or [])
         if not cmd_parts:
             continue
+        # MCP-Bench's commands.json assumes a conda env is pre-activated so
+        # bare `python …` or `uv run python …` resolves to the per-server
+        # venv. Claude Code spawns MCP subprocesses with a narrow env that
+        # doesn't carry the venv preamble, and uv's project resolution can
+        # pick the wrong python if VIRTUAL_ENV leaks in from the parent
+        # process. Bypass both by hard-binding to `<cwd>/.venv/bin/python`
+        # when it exists — that's what install.sh guarantees per server.
+        local_py = Path(cwd_abs) / ".venv" / "bin" / "python" if cwd_abs else None
+        if local_py and local_py.exists():
+            i = 0
+            if cmd_parts[0] == "uv" and len(cmd_parts) > 1 and cmd_parts[1] == "run":
+                i = 2
+                while i < len(cmd_parts) and cmd_parts[i].startswith("--"):
+                    i += 2 if cmd_parts[i] in ("--project", "--with") else 1
+            if i < len(cmd_parts) and cmd_parts[i] in ("python", "python3"):
+                i += 1
+            cmd_parts = [str(local_py)] + cmd_parts[i:]
+
+        # Resolve absolute path for the command so it doesn't depend on PATH
+        # inheritance (Claude Code spawns MCP stdio subprocesses with a narrow
+        # env by default). Fall back to `python3` if the command is bare
+        # `python` and no `python` is on PATH (macOS ships python3 only).
+        resolved = shutil.which(cmd_parts[0])
+        if resolved is None and cmd_parts[0] == "python":
+            resolved = shutil.which("python3")
+        cmd0 = resolved or cmd_parts[0]
+
+        # Build the env we hand to the MCP subprocess. Start with PATH,
+        # HOME, LANG (so uv/python/node can resolve binaries and caches),
+        # then layer in secret-holding vars the task asked for. We
+        # *deliberately* do not forward VIRTUAL_ENV — if we inherit the
+        # harness's own venv, uv's `run` picks that up instead of walking
+        # from `cwd` to the per-server `.venv`, and the module import fails.
+        child_env = {
+            k: os.environ[k]
+            for k in ("PATH", "HOME", "LANG", "LC_ALL", "LC_CTYPE", "SHELL",
+                      "USER", "LOGNAME", "TMPDIR")
+            if k in os.environ
+        }
+        # Strip the harness venv's bin from PATH too — otherwise tools that
+        # auto-detect `python3` via PATH would short-circuit to it.
+        host_venv_bin = os.environ.get("VIRTUAL_ENV", "").rstrip("/") + "/bin"
+        if host_venv_bin and "PATH" in child_env:
+            parts = [p for p in child_env["PATH"].split(":") if p != host_venv_bin]
+            child_env["PATH"] = ":".join(parts)
+        child_env.update(env_map)
+
         servers[key] = {
-            "command": cmd_parts[0],
+            "command": cmd0,
             "args": list(cmd_parts[1:]),
-            **({"env": dict(env_map)} if env_map else {}),
+            "env": child_env,
             **({"cwd": cwd_abs} if cwd_abs else {}),
         }
 
@@ -141,12 +188,8 @@ class ClaudeCodeExecutor:
                         }],
                     }
 
-            claude_home = workdir / ".claude"
-            claude_home.mkdir(parents=True)
-            (claude_home / "settings.json").write_text(json.dumps(settings))
-            (workdir / ".claude.json").write_text(
-                '{"hasCompletedOnboarding":true,"bypassPermissionsModeAccepted":true}\n'
-            )
+            settings_path = workdir / "_settings.json"
+            settings_path.write_text(json.dumps(settings))
 
             if include_code_mode:
                 # Init code-mode workspace + reindex so SDKs are introspected
@@ -161,15 +204,25 @@ class ClaudeCodeExecutor:
                 )
 
             child_env = os.environ.copy()
-            child_env["HOME"] = str(workdir)
+            # Force Claude Code to use OAuth (CLAUDE_CODE_OAUTH_TOKEN) instead
+            # of falling through to ANTHROPIC_API_KEY — the API-key path has
+            # different (often lower) monthly caps than the subscription OAuth.
+            child_env.pop("ANTHROPIC_API_KEY", None)
             if block_mode:
                 child_env["CODE_MODE_MCP_BLOCK"] = "1"
 
+            # Use --mcp-config + --settings + --strict-mcp-config so Claude
+            # loads only our scoped config without us having to override HOME
+            # (HOME must stay real so child MCP servers see their uv/pip
+            # caches under $HOME/.cache and don't re-fetch deps from scratch).
             args = [
                 shutil.which("claude") or "claude",
                 "--dangerously-skip-permissions",
                 "--output-format", "stream-json", "--verbose",
                 "--model", self.model,
+                "--mcp-config", str(workdir / ".mcp.json"),
+                "--settings", str(settings_path),
+                "--strict-mcp-config",
                 "-p", task,
             ]
 

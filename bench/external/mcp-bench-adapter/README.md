@@ -63,11 +63,18 @@ git apply /path/to/code-mode/bench/external/mcp-bench-adapter/mcpbench-bugfix.pa
 git apply /path/to/code-mode/bench/external/mcp-bench-adapter/judge-openai.patch
 
 # 4. Install MCP-Bench's 28 MCP servers + Python deps (~10 min).
-conda create -n mcpbench python=3.10
-conda activate mcpbench
+#    `uv venv` works as a drop-in for conda and is faster.
+uv venv .venv --python 3.10 && source .venv/bin/activate
+uv pip install -r mcp_servers/requirements.txt openai
 cd mcp_servers && bash ./install.sh && cd ..
 
-# 5. Install Claude Code + code-mode globally.
+# 5. Pre-sync each per-server venv (install.sh does NOT create .venv dirs
+#    under mcp_servers/<server>/; our executor hard-binds to
+#    <cwd>/.venv/bin/python because uv's project resolution is flaky when
+#    Claude Code spawns stdio MCPs with a narrow env — see commit log).
+bash /path/to/code-mode/bench/external/mcp-bench-adapter/presync-venvs.sh .
+
+# 6. Install Claude Code + code-mode globally.
 npm i -g @anthropic-ai/claude-code @desplega/code-mode
 ```
 

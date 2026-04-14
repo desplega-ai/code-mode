@@ -20,6 +20,8 @@ export interface StreamAccumulator {
   final_text: string;
   /** True if the final `result` event declared is_error. */
   claude_reported_error: boolean;
+  /** Authoritative cost in USD from claude's `result` event. null if not emitted. */
+  cost_usd: number | null;
 }
 
 export function newAccumulator(): StreamAccumulator {
@@ -29,6 +31,7 @@ export function newAccumulator(): StreamAccumulator {
     turns: 0,
     final_text: "",
     claude_reported_error: false,
+    cost_usd: null,
   };
 }
 
@@ -72,13 +75,14 @@ export function ingestLine(acc: StreamAccumulator, line: string): void {
     return;
   }
 
-  // "result" event (emitted at the end by stream-json) also carries final usage.
+  // "result" event (emitted at the end by stream-json) also carries final usage + cost.
   if (e.type === "result") {
     if (e.usage) accumulateUsage(acc, e.usage as Usage);
     if (typeof e.result === "string" && e.result.length > 0) {
       acc.final_text = e.result;
     }
     if (e.is_error === true) acc.claude_reported_error = true;
+    if (typeof e.total_cost_usd === "number") acc.cost_usd = e.total_cost_usd;
   }
 }
 

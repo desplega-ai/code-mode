@@ -50,6 +50,8 @@ export interface RunResult {
   turns: number;
   final_text: string;
   smoke_pass: boolean | null;
+  /** Claude's own reported cost (USD). null if not emitted (e.g. timeout). */
+  cost_usd: number | null;
   exit_code: number | null;
   error?: string;
 }

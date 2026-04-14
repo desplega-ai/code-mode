@@ -33,6 +33,7 @@ export async function runOne(opts: RunOpts): Promise<RunResult> {
     turns: 0,
     final_text: "",
     smoke_pass: null,
+    cost_usd: null,
     exit_code: null,
   };
 
@@ -138,6 +139,7 @@ export async function runOne(opts: RunOpts): Promise<RunResult> {
     result.tool_calls = acc.tool_calls;
     result.turns = acc.turns;
     result.final_text = acc.final_text;
+    result.cost_usd = acc.cost_usd;
     result.exit_code = exit;
 
     if (result.status === "ok" && exit !== 0) {

@@ -165,6 +165,7 @@ async function runWithConcurrency(jobs: Job[], concurrency: number): Promise<Run
             turns: 0,
             final_text: "",
             smoke_pass: null,
+            cost_usd: null,
             exit_code: null,
             error: err instanceof Error ? err.message : String(err),
           });

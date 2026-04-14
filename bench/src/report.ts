@@ -83,9 +83,9 @@ export function writeReport(outDir: string, runs: RunResult[]): void {
     lines.push(`## ${taskId}`);
     lines.push("");
     lines.push(
-      `| Model | Variant | Status | Wall (ms) | Tokens (total) | Tool calls | Δ wall | Δ tokens | Δ calls |`,
+      `| Model | Variant | Status | Wall (ms) | Tokens (total) | Cost (USD) | Tool calls | Δ wall | Δ tokens | Δ cost | Δ calls |`,
     );
-    lines.push(`|---|---|---|---|---|---|---|---|---|`);
+    lines.push(`|---|---|---|---|---|---|---|---|---|---|---|`);
 
     const taskOut: Record<string, unknown> = {};
     for (const model of models) {
@@ -102,11 +102,14 @@ export function writeReport(outDir: string, runs: RunResult[]): void {
       const baselineWall = agg(baselineOk.map((r) => r.wall_ms));
       const baselineTok = agg(baselineOk.map(totalTokens));
       const baselineCalls = agg(baselineOk.map((r) => r.tool_calls.total));
+      const baselineCost = agg(
+        baselineOk.flatMap((r) => (typeof r.cost_usd === "number" ? [r.cost_usd] : [])),
+      );
 
       for (const variant of ALL_VARIANTS) {
         const cell = variants.get(variant);
         if (!cell || cell.runs.length === 0) {
-          lines.push(`| \`${model}\` | \`${variant}\` | — | — | — | — | — | — | — |`);
+          lines.push(`| \`${model}\` | \`${variant}\` | — | — | — | — | — | — | — | — | — |`);
           continue;
         }
         const ok = cell.runs.filter((r) => r.status === "ok");
@@ -121,6 +124,7 @@ export function writeReport(outDir: string, runs: RunResult[]): void {
         const wall = agg(ok.map((r) => r.wall_ms));
         const tok = agg(ok.map(totalTokens));
         const calls = agg(ok.map((r) => r.tool_calls.total));
+        const cost = agg(ok.flatMap((r) => (typeof r.cost_usd === "number" ? [r.cost_usd] : [])));
         const hasData = ok.length > 0;
         const dWall =
           variant === "baseline" || !hasData ? "—" : deltaPct(wall.median, baselineWall.median);
@@ -128,8 +132,13 @@ export function writeReport(outDir: string, runs: RunResult[]): void {
           variant === "baseline" || !hasData ? "—" : deltaPct(tok.median, baselineTok.median);
         const dCalls =
           variant === "baseline" || !hasData ? "—" : deltaPct(calls.median, baselineCalls.median);
+        const dCost =
+          variant === "baseline" || !hasData || baselineCost.median === 0
+            ? "—"
+            : deltaPct(cost.median, baselineCost.median);
+        const costCell = cost.median > 0 ? `$${cost.median.toFixed(4)}` : "—";
         lines.push(
-          `| \`${model}\` | \`${variant}\` | ${statusLabel} | ${fmt(wall)} | ${fmt(tok)} | ${fmt(calls)} | ${dWall} | ${dTok} | ${dCalls} |`,
+          `| \`${model}\` | \`${variant}\` | ${statusLabel} | ${fmt(wall)} | ${fmt(tok)} | ${costCell} | ${fmt(calls)} | ${dWall} | ${dTok} | ${dCost} | ${dCalls} |`,
         );
         modelOut[variant] = {
           n: cell.runs.length,
@@ -138,6 +147,7 @@ export function writeReport(outDir: string, runs: RunResult[]): void {
           failed,
           wall_ms: wall,
           tokens_total: tok,
+          cost_usd: cost,
           tool_calls_total: calls,
         };
       }

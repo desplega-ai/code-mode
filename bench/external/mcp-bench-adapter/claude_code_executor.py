@@ -112,10 +112,37 @@ def _build_mcp_json(server_configs: List[Dict[str, Any]], repo_root: Path,
             child_env["PATH"] = ":".join(parts)
         child_env.update(env_map)
 
+        # Claude Code (2.1.108) silently ignores the `cwd` field for stdio
+        # MCP servers — the child is spawned in the parent's workdir, not
+        # the one declared here. `env` IS honored; only `cwd` is dropped.
+        # That breaks any server whose args contain a relative file path
+        # (e.g. Math MCP's `node build/index.js`), with no visible error
+        # because stderr is also swallowed — the `init` event just reports
+        # `status: failed`. Python `-m <module>` entries accidentally mask
+        # the bug because the interpreter resolves modules via its own
+        # prefix/sys.path rather than cwd.
+        #
+        # We work around it by pre-resolving each arg that both (a) looks
+        # like a path (no leading `-`) and (b) exists as a file relative
+        # to `cwd_abs`. Everything else passes through unchanged.
+        rest_args = list(cmd_parts[1:])
+        if cwd_abs:
+            rewritten: List[str] = []
+            for a in rest_args:
+                if a and not a.startswith("-") and not Path(a).is_absolute():
+                    candidate = (Path(cwd_abs) / a).resolve()
+                    if candidate.exists():
+                        rewritten.append(str(candidate))
+                        continue
+                rewritten.append(a)
+            rest_args = rewritten
+
         servers[key] = {
             "command": cmd0,
-            "args": list(cmd_parts[1:]),
+            "args": rest_args,
             "env": child_env,
+            # Kept for MCPs that might start honouring it in a later CC
+            # version — harmless today since Claude Code drops it.
             **({"cwd": cwd_abs} if cwd_abs else {}),
         }
 

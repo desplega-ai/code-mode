@@ -239,8 +239,20 @@ class ClaudeCodeExecutor:
             child_env = os.environ.copy()
             # Force Claude Code to use OAuth (CLAUDE_CODE_OAUTH_TOKEN) instead
             # of falling through to ANTHROPIC_API_KEY — the API-key path has
-            # different (often lower) monthly caps than the subscription OAuth.
+            # different (lower) monthly caps than the subscription OAuth.
             child_env.pop("ANTHROPIC_API_KEY", None)
+            # Opt-in: when CLAUDE_CODE_USE_KEYCHAIN=1, strip the parent's
+            # CLAUDE_CODE_OAUTH_TOKEN from the child env so `claude -p`
+            # falls through to macOS Keychain auth (refreshable, managed
+            # by the interactive `claude login` flow). The parent still
+            # needs *some* non-empty value for CLAUDE_CODE_OAUTH_TOKEN
+            # because MCP-Bench's `llm/factory.py` gates the claude-code-*
+            # variants on env-presence; a sentinel like "keychain" works.
+            # This matters when the bench/.env token is capped on its
+            # own subscription but the developer's interactive Keychain
+            # token (different subscription) still has budget.
+            if os.environ.get("CLAUDE_CODE_USE_KEYCHAIN") == "1":
+                child_env.pop("CLAUDE_CODE_OAUTH_TOKEN", None)
             if block_mode:
                 child_env["CODE_MODE_MCP_BLOCK"] = "1"
 

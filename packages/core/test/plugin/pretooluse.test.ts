@@ -359,6 +359,90 @@ export async function searchObjects(args: SearchObjectsArgs): Promise<SearchObje
     rmSync(ws, { recursive: true, force: true });
   });
 
+  test("block mode re-denies the same mcp tool on every call (no dedup bypass)", () => {
+    // Regression guard for the MCP-Bench multi-MCP run on 2026-04-15:
+    // the hook's dedup cache was silent-passing repeat mcp calls in
+    // block mode after the first denial, letting the agent ignore the
+    // first hint and then route direct. Block enforcement is one-shot
+    // per session — defeats the variant's whole point.
+    const ws = makeWorkspace({
+      mcpBlockMode: "block",
+      mcpWhitelist: [],
+      hooksEnabled: true,
+    });
+    const sessionId = "s-block-repeat";
+    // First call: expect deny with the block-mode reason.
+    const r1 = runHook(
+      { tool_name: "mcp__dbhub__execute_sql", tool_input: {} },
+      {
+        env: { TMPDIR: isolatedTmp, CODE_MODE_MCP_BLOCK: "1" },
+        cwd: ws,
+        sessionId,
+      },
+    );
+    expect(r1.parsed.hookSpecificOutput.permissionDecision).toBe("deny");
+    expect(r1.parsed.hookSpecificOutput.permissionDecisionReason).toMatch(
+      /mcpBlockMode=block/,
+    );
+    // Second call to the SAME tool in the SAME session: must also deny.
+    const r2 = runHook(
+      { tool_name: "mcp__dbhub__execute_sql", tool_input: {} },
+      {
+        env: { TMPDIR: isolatedTmp, CODE_MODE_MCP_BLOCK: "1" },
+        cwd: ws,
+        sessionId,
+      },
+    );
+    expect(r2.parsed.hookSpecificOutput.permissionDecision).toBe("deny");
+    expect(r2.parsed.hookSpecificOutput.permissionDecisionReason).toMatch(
+      /mcpBlockMode=block/,
+    );
+    // Third call: still deny.
+    const r3 = runHook(
+      { tool_name: "mcp__dbhub__execute_sql", tool_input: {} },
+      {
+        env: { TMPDIR: isolatedTmp, CODE_MODE_MCP_BLOCK: "1" },
+        cwd: ws,
+        sessionId,
+      },
+    );
+    expect(r3.parsed.hookSpecificOutput.permissionDecision).toBe("deny");
+    rmSync(ws, { recursive: true, force: true });
+  });
+
+  test("hint mode still dedups repeat mcp tools (one hint per tool per session)", () => {
+    // Counter-case: dedup IS the right behavior in hint mode, so the
+    // block-mode bypass must not regress hint-mode silence on repeats.
+    const ws = makeWorkspace({
+      mcpBlockMode: "hint",
+      mcpWhitelist: [],
+      hooksEnabled: true,
+    });
+    const sessionId = "s-hint-repeat";
+    const r1 = runHook(
+      { tool_name: "mcp__dbhub__execute_sql", tool_input: {} },
+      {
+        env: { TMPDIR: isolatedTmp },
+        cwd: ws,
+        sessionId,
+      },
+    );
+    // First: allow + hint.
+    expect(r1.parsed.hookSpecificOutput.permissionDecision).toBe("allow");
+    expect(r1.parsed.hookSpecificOutput.additionalContext).toBeTruthy();
+    // Second: silent pass (empty object), dedup fires.
+    const r2 = runHook(
+      { tool_name: "mcp__dbhub__execute_sql", tool_input: {} },
+      {
+        env: { TMPDIR: isolatedTmp },
+        cwd: ws,
+        sessionId,
+      },
+    );
+    expect(r2.parsed).toEqual({});
+    rmSync(ws, { recursive: true, force: true });
+  });
+
   test("custom whitelist allows a prefix", () => {
     const ws = makeWorkspace({
       mcpBlockMode: "block",

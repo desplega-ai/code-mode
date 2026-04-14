@@ -102,10 +102,31 @@ async function main() {
   }
 
   // Dedup: same tool_name already seen in this session → silent pass.
+  //
+  // This is correct for `hint` mode (don't spam the same hint over and
+  // over) and for non-mcp tools (Bash, WebFetch) where dedup just
+  // reduces noise. It is WRONG for `mcp__*` tools in `block` mode —
+  // if we silent-pass a prior-seen mcp tool, the agent successfully
+  // calls it after ignoring one denial per tool name, which defeats
+  // block enforcement entirely.
+  //
+  // Fix: for mcp tools, read config up-front and skip the dedup
+  // short-circuit when the tool would be denied. Self-exempt
+  // (`mcp__code-mode__*`) and whitelisted tools still silent-pass
+  // via the existing branches below.
   const dedup = readDedup(sessionId);
   if (dedup.seenTools[toolName]) {
-    emit({});
-    return;
+    let dedupShortCircuit = true;
+    if (toolName.startsWith("mcp__") && !CODE_MODE_SELF_TOOL_RE.test(toolName)) {
+      const cfg = readConfig(cwd);
+      if (cfg.mcpBlockMode === "block" && !isMcpWhitelisted(toolName, cfg)) {
+        dedupShortCircuit = false;
+      }
+    }
+    if (dedupShortCircuit) {
+      emit({});
+      return;
+    }
   }
 
   // Compute decision before marking seen — a deny response should still

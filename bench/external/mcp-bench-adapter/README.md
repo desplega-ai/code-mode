@@ -52,6 +52,18 @@ export JUDGE_MODEL=gpt-5-mini   # or any chat-completions model your key has
 # hook denials, tool mix, and judge scoring errors.
 # export CLAUDE_CODE_KEEP_WORKDIR=1
 
+# Opt-in: when set, the executor pops `CLAUDE_CODE_OAUTH_TOKEN` from
+# the child env before spawning `claude -p`, so Claude Code falls
+# through to macOS Keychain auth (refreshable, managed by the
+# interactive `claude login` flow). The parent process still needs a
+# non-empty `CLAUDE_CODE_OAUTH_TOKEN` to pass MCP-Bench's
+# `llm/factory.py` env-presence gate — any sentinel like "keychain"
+# works. Useful when the bench/.env token hits its own subscription
+# cap but a developer's interactive token on another subscription
+# still has budget.
+# export CLAUDE_CODE_OAUTH_TOKEN=keychain
+# export CLAUDE_CODE_USE_KEYCHAIN=1
+
 # Per-task MCP server keys (see mcp_servers/api_key)
 ```
 
@@ -63,7 +75,7 @@ the README in sync whenever a new patch lands.
 
 | File | Target | Required? | What it does |
 |---|---|---|---|
-| `claude_code_executor.py`         | `agent/claude_code_executor.py` | **required** | Duck-typed `TaskExecutor` that spawns `claude -p`, parses the stream-json, and returns the dict shape MCP-Bench's judge expects. Includes `CLAUDE_CODE_KEEP_WORKDIR=1` debug mode and per-`tool_use` `success` pairing. |
+| `claude_code_executor.py`         | `agent/claude_code_executor.py` | **required** | Duck-typed `TaskExecutor` that spawns `claude -p`, parses the stream-json, and returns the dict shape MCP-Bench's judge expects. Includes `CLAUDE_CODE_KEEP_WORKDIR=1` debug mode, per-`tool_use` `success` pairing, `CLAUDE_CODE_USE_KEYCHAIN=1` opt-in for macOS Keychain auth fallthrough, and an absolutise-relative-args pass that works around Claude Code silently ignoring the `.mcp.json` `cwd` field for stdio servers. |
 | `claude_code_provider.py`         | `llm/claude_code_provider.py`   | **required** | Sentinel `LLMProvider` so the runner can `isinstance`-switch on the Claude Code variants. |
 | `upstream.patch`                  | `benchmark/runner.py`, `llm/factory.py` | **required** | Wires the two model configs (`claude-code-baseline`, `claude-code-codemode-block`) + the executor-swap branch. |
 | `mcpbench-bugfix.patch`           | `benchmark/runner.py` | **required for `--distraction-count 0`** | Loads `commands_config` unconditionally — upstream references it even when distractions are disabled, so without this the runner crashes on any zero-distraction run. |

@@ -237,9 +237,21 @@ class ClaudeCodeExecutor:
                                      timeout_s=self.timeout_s, capture_stream=True)
             wall_s = time.time() - t0
 
-            return self._parse_stream(stream, wall_s)
+            parsed = self._parse_stream(stream, wall_s)
+            # Debug aid: when `CLAUDE_CODE_KEEP_WORKDIR=1`, drop the raw
+            # stream-json and a truncated parse into the workdir and skip
+            # the cleanup in `finally`. Essential for post-run inspection
+            # of denials, tool mix, and judge scoring.
+            if os.environ.get("CLAUDE_CODE_KEEP_WORKDIR") == "1":
+                (workdir / "_stream.jsonl").write_text(stream)
+                (workdir / "_parsed.json").write_text(
+                    json.dumps(parsed, indent=2)[:5000]
+                )
+                logger.warning("[DEBUG] preserved workdir: %s", workdir)
+            return parsed
         finally:
-            shutil.rmtree(workdir, ignore_errors=True)
+            if os.environ.get("CLAUDE_CODE_KEEP_WORKDIR") != "1":
+                shutil.rmtree(workdir, ignore_errors=True)
 
     async def _run(
         self,

@@ -24,8 +24,11 @@ The variant is selected via env (`CODE_MODE_VARIANT`), set automatically by `LLM
 ```bash
 # Claude Code
 export CLAUDE_CODE_OAUTH_TOKEN=...
-export CLAUDE_CODE_MODEL=claude-sonnet-4-6   # or claude-opus-4-6
-export CLAUDE_CODE_TIMEOUT_S=300
+export CLAUDE_CODE_MODEL=claude-sonnet-4-6       # or claude-opus-4-6
+export CLAUDE_CODE_TIMEOUT_S=900                 # executor default since
+                                                 # 2026-04-14; baseline
+                                                 # wikipedia_000 runs ~294s,
+                                                 # so 300s had no margin.
 
 # Plugin path (only needed for codemode-block variant; required for the
 # PreToolUse hook that enforces blocking — claude-code's --plugin-dir
@@ -33,15 +36,41 @@ export CLAUDE_CODE_TIMEOUT_S=300
 export CODE_MODE_PLUGIN_DIR=/path/to/code-mode/plugins/code-mode
 
 # Judge — pick ONE of:
-#  (a) regular OpenAI (recommended; requires applying judge-openai.patch).
+#  (a) Regular OpenAI (recommended; requires judge-openai.patch, AND
+#      llm-provider-reasoning-tokens.patch when JUDGE_MODEL is gpt-5*
+#      or an o-series reasoning model — otherwise the `max_tokens`
+#      param gets a 400 and the retry loop hides it).
 export OPENAI_API_KEY=...
 export JUDGE_MODEL=gpt-5-mini   # or any chat-completions model your key has
 #  (b) Azure OpenAI (upstream default — leaderboard-comparable with o4-mini).
 # export AZURE_OPENAI_API_KEY=...
 # export AZURE_OPENAI_ENDPOINT=...
 
+# Debug aid: preserve per-task working directories (with `_stream.jsonl`
+# and a truncated `_parsed.json`) instead of cleaning them up. Read by
+# `ClaudeCodeExecutor.execute`. Essential for post-run inspection of
+# hook denials, tool mix, and judge scoring errors.
+# export CLAUDE_CODE_KEEP_WORKDIR=1
+
 # Per-task MCP server keys (see mcp_servers/api_key)
 ```
+
+## Patch inventory
+
+Everything in this directory is either a drop-in file or a `git apply`-able
+patch against a clean `Accenture/mcp-bench` checkout. Keep the list and
+the README in sync whenever a new patch lands.
+
+| File | Target | Required? | What it does |
+|---|---|---|---|
+| `claude_code_executor.py`         | `agent/claude_code_executor.py` | **required** | Duck-typed `TaskExecutor` that spawns `claude -p`, parses the stream-json, and returns the dict shape MCP-Bench's judge expects. Includes `CLAUDE_CODE_KEEP_WORKDIR=1` debug mode and per-`tool_use` `success` pairing. |
+| `claude_code_provider.py`         | `llm/claude_code_provider.py`   | **required** | Sentinel `LLMProvider` so the runner can `isinstance`-switch on the Claude Code variants. |
+| `upstream.patch`                  | `benchmark/runner.py`, `llm/factory.py` | **required** | Wires the two model configs (`claude-code-baseline`, `claude-code-codemode-block`) + the executor-swap branch. |
+| `mcpbench-bugfix.patch`           | `benchmark/runner.py` | **required for `--distraction-count 0`** | Loads `commands_config` unconditionally — upstream references it even when distractions are disabled, so without this the runner crashes on any zero-distraction run. |
+| `judge-openai.patch`              | `benchmark/runner.py` | optional | Lets the judge use regular OpenAI (or any OpenAI-compatible `OPENAI_BASE_URL`) when `OPENAI_API_KEY` is set, falling back to Azure. Judge model is `JUDGE_MODEL` env var (default `o4-mini` for upstream comparability). |
+| `llm-provider-reasoning-tokens.patch` | `llm/provider.py` | required when `JUDGE_MODEL` is a reasoning model | Routes `max_tokens` → `max_completion_tokens` for gpt-5* and o-series models across *both* Azure and non-Azure providers. Upstream only special-cased Azure + hardcoded name list. |
+| `presync-venvs.sh`                | script | required | Creates a `.venv` under every `mcp_servers/<server>/`. `install.sh` doesn't, and the executor hard-binds to `<cwd>/.venv/bin/python` because uv's project resolution is flaky when Claude Code spawns stdio MCPs with a narrow env. |
+| `env.smoke.example`               | template | optional | Shell env template — source it after editing OAuth and any per-server API keys. |
 
 ## Installation
 
@@ -50,17 +79,21 @@ export JUDGE_MODEL=gpt-5-mini   # or any chat-completions model your key has
 git clone https://github.com/Accenture/mcp-bench.git
 cd mcp-bench
 
-# 2. Drop in the two new files.
-cp /path/to/code-mode/bench/external/mcp-bench-adapter/claude_code_executor.py agent/
-cp /path/to/code-mode/bench/external/mcp-bench-adapter/claude_code_provider.py llm/
+# Point ADAPTER at this directory in the code-mode repo so the steps
+# below are cut-and-paste.
+ADAPTER=/path/to/code-mode/bench/external/mcp-bench-adapter
 
-# 3. Apply the patches (order matters: upstream first, then optional ones).
-git apply /path/to/code-mode/bench/external/mcp-bench-adapter/upstream.patch
-# Required if you'll run with --distraction-count 0 (upstream bug — commands_config
-# is referenced unconditionally but only loaded when distractions are enabled).
-git apply /path/to/code-mode/bench/external/mcp-bench-adapter/mcpbench-bugfix.patch
-# Optional: swap judge from Azure to regular OpenAI (parameterizable via JUDGE_MODEL env).
-git apply /path/to/code-mode/bench/external/mcp-bench-adapter/judge-openai.patch
+# 2. Drop in the two new files.
+cp "$ADAPTER/claude_code_executor.py" agent/
+cp "$ADAPTER/claude_code_provider.py" llm/
+
+# 3. Apply the patches. Apply upstream.patch FIRST — the rest patch
+#    files it touches. Optional patches can be skipped if you don't need
+#    the feature they unlock.
+git apply "$ADAPTER/upstream.patch"                         # required
+git apply "$ADAPTER/mcpbench-bugfix.patch"                  # required for --distraction-count 0
+git apply "$ADAPTER/judge-openai.patch"                     # optional: regular OpenAI judge
+git apply "$ADAPTER/llm-provider-reasoning-tokens.patch"    # required if JUDGE_MODEL is gpt-5* / o-series
 
 # 4. Install MCP-Bench's 28 MCP servers + Python deps (~10 min).
 #    `uv venv` works as a drop-in for conda and is faster.
@@ -68,15 +101,37 @@ uv venv .venv --python 3.10 && source .venv/bin/activate
 uv pip install -r mcp_servers/requirements.txt openai
 cd mcp_servers && bash ./install.sh && cd ..
 
-# 5. Pre-sync each per-server venv (install.sh does NOT create .venv dirs
-#    under mcp_servers/<server>/; our executor hard-binds to
-#    <cwd>/.venv/bin/python because uv's project resolution is flaky when
-#    Claude Code spawns stdio MCPs with a narrow env — see commit log).
-bash /path/to/code-mode/bench/external/mcp-bench-adapter/presync-venvs.sh .
+# 5. Pre-sync each per-server venv.
+bash "$ADAPTER/presync-venvs.sh" .
 
 # 6. Install Claude Code + code-mode globally.
 npm i -g @anthropic-ai/claude-code @desplega/code-mode
+
+# 7. Seed your env and go.
+cp "$ADAPTER/env.smoke.example" .env.smoke
+$EDITOR .env.smoke
 ```
+
+## Re-sync checklist (adapter → fork)
+
+When you change anything in this adapter directory, propagate it to an
+existing MCP-Bench fork before the next run:
+
+1. `cp "$ADAPTER/claude_code_executor.py" agent/` — always. This file
+   is rev'd most often (timeout defaults, stream parser, `success`
+   pairing, workdir preservation).
+2. `cp "$ADAPTER/claude_code_provider.py" llm/` — only if the sentinel
+   class shape changed.
+3. For `*.patch` changes, the cleanest path is: `git -C <fork> reset
+   --hard <base>`, re-`cp` the two files, then re-apply patches in the
+   order listed above. This is what the install script does on a fresh
+   clone.
+4. After any change, smoke-run `python run_benchmark.py --models
+   claude-code-baseline --tasks-file tasks/_smoke1.json
+   --distraction-count 0` and confirm you see judge scores (not a
+   harness-level error). If you changed `claude_code_executor.py`,
+   also run with `CLAUDE_CODE_KEEP_WORKDIR=1` and spot-check
+   `_stream.jsonl` for the expected tool mix.
 
 ## Sanity run
 
@@ -84,12 +139,16 @@ npm i -g @anthropic-ai/claude-code @desplega/code-mode
 # Single task, baseline.
 python run_benchmark.py \
   --models claude-code-baseline \
-  --task-files tasks/mcpbench_tasks_single_runner_format.json \
-  --max-tasks 1
+  --tasks-file tasks/_smoke1.json \
+  --distraction-count 0
 ```
+
+See `bench-log/2026-04-14-mcpbench-first-real-baseline.md` in the
+code-mode repo for the expected output shape, cost, and telemetry on
+`wikipedia_000`.
 
 ## Known limitations (cut-1)
 
 - **Double-spawning MCP servers**: MCP-Bench's `server_manager` keeps its own MCP connections open even though Claude Code spawns its own. Wasteful but isolates the variants cleanly.
 - **No CODE_MODE_MCP_HINT variant yet**: only baseline + block. Adding a third (`hint` mode, where code-mode is registered but not blocking) is a one-line factory entry — deferred until block run produces a baseline number.
-- **No tool-call execution_results detail**: we capture the tool *invocations* but not their MCP-side return values (those live in `tool_result` blocks which we put into `accumulated_information` as text). The judge reads `accumulated_information` so it has the data; the structured `execution_results` field is sparser than what `TaskExecutor` produces.
+- **`accumulated_information` is the judge's source of truth**: we capture tool *invocations* into `execution_results` (with `success` pairing as of 2026-04-14), but the MCP-side return values live in the `tool_result` blocks that we flatten into `accumulated_information` as text. The judge reads `accumulated_information`, so it has everything — just know the structured `execution_results` field is sparser than what `TaskExecutor` produces.

@@ -1,0 +1,33 @@
+diff --git a/llm/provider.py b/llm/provider.py
+index 7438a48..db00893 100644
+--- a/llm/provider.py
++++ b/llm/provider.py
+@@ -152,14 +152,25 @@ class LLMProvider:
+             ],
+         }
+         
+-        # Handle different token parameter names
++        # Handle different token parameter names. Reasoning models (o-series
++        # and gpt-5*) require `max_completion_tokens`; passing `max_tokens`
++        # yields a 400 that our retry loop hides behind an empty evaluation.
++        name = (self.deployment_name or "").lower()
++        is_reasoning = (
++            self.deployment_name in MODELS_WITH_MAX_COMPLETION_TOKENS
++            or name.startswith("o4-") or name.startswith("o3")
++            or name.startswith("gpt-5")
++        )
+         if self.provider_type == "azure":
+-            if self.deployment_name in MODELS_WITH_MAX_COMPLETION_TOKENS:
++            if is_reasoning:
+                 params["max_completion_tokens"] = max_tokens
+             else:
+                 params["max_tokens"] = max_tokens
+         else:
+-            params["max_tokens"] = max_tokens
++            if is_reasoning:
++                params["max_completion_tokens"] = max_tokens
++            else:
++                params["max_tokens"] = max_tokens
+         
+         # Simple retry mechanism: 3 attempts with exponential backoff
+         max_attempts = 3

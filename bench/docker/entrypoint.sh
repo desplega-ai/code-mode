@@ -73,6 +73,39 @@ JSON
       fi
     fi
     ;;
+  multi-mcp-baseline)
+    # dbhub (sqlite, stdio) + deepwiki (HTTP). No code-mode wrapping.
+    cat > /workspace/.mcp.json <<'JSON'
+{"mcpServers":{"dbhub":{"command":"npx","args":["-y","@bytebase/dbhub@latest","--transport","stdio","--dsn","sqlite:///workspace/bench.db"]},"deepwiki":{"type":"http","url":"https://mcp.deepwiki.com/mcp"}}}
+JSON
+    cat > "$HOME/.claude/settings.json" <<'JSON'
+{"enableAllProjectMcpServers":true,"enabledMcpjsonServers":["dbhub","deepwiki"]}
+JSON
+    # Seed bench.db if a task.sql fixture was mounted.
+    if [ -f /workspace/task.sql ]; then
+      sqlite3 /workspace/bench.db < /workspace/task.sql
+    fi
+    ;;
+  multi-mcp-codemode)
+    # dbhub + deepwiki + code-mode. code-mode init introspects the other two
+    # and emits typed SDK wrappers, so the model can route through __run.
+    cat > /workspace/.mcp.json <<'JSON'
+{"mcpServers":{"dbhub":{"command":"npx","args":["-y","@bytebase/dbhub@latest","--transport","stdio","--dsn","sqlite:///workspace/bench.db"]},"deepwiki":{"type":"http","url":"https://mcp.deepwiki.com/mcp"},"code-mode":{"command":"code-mode","args":["mcp"]}}}
+JSON
+    cat > "$HOME/.claude/settings.json" <<'JSON'
+{"enableAllProjectMcpServers":true,"enabledMcpjsonServers":["dbhub","deepwiki","code-mode"]}
+JSON
+    # Seed bench.db BEFORE code-mode init (so introspection sees a real DB).
+    if [ -f /workspace/task.sql ]; then
+      sqlite3 /workspace/bench.db < /workspace/task.sql
+    fi
+    # Initialise code-mode workspace and reindex so SDKs for dbhub + deepwiki
+    # are generated under .code-mode/sdks/.generated/.
+    if [ ! -d /workspace/.code-mode ]; then
+      code-mode init /workspace >/dev/null || true
+    fi
+    (cd /workspace && code-mode reindex >/dev/null) || true
+    ;;
   *)
     echo "entrypoint: unknown BENCH_VARIANT: $BENCH_VARIANT" >&2
     exit 2

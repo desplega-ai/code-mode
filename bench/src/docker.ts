@@ -65,6 +65,11 @@ export async function runOne(opts: RunOpts): Promise<RunResult> {
   if (variant === "code-mode-plugin" || variant === "code-mode-subagent") {
     seedsDir = task.seedsDir ?? genericSeedsDir;
   }
+  // multi-mcp-* variants deliberately receive NO seeds — we want to observe
+  // whether the model reaches for the MCP-provided SDKs/tools natively.
+  if (variant === "multi-mcp-baseline" || variant === "multi-mcp-codemode") {
+    seedsDir = null;
+  }
 
   // Tempdir for /workspace, seeded from fixtures.
   const workdir = mkdtempSync(join(tmpdir(), `bench-${task.id}-${variant}-${rep}-`));

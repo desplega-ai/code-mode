@@ -3,7 +3,9 @@ export type Variant =
   | "code-mode-generic"
   | "code-mode-tailored"
   | "code-mode-plugin"
-  | "code-mode-subagent";
+  | "code-mode-subagent"
+  | "multi-mcp-baseline"
+  | "multi-mcp-codemode";
 
 export const ALL_VARIANTS: Variant[] = [
   "baseline",
@@ -11,6 +13,8 @@ export const ALL_VARIANTS: Variant[] = [
   "code-mode-tailored",
   "code-mode-plugin",
   "code-mode-subagent",
+  "multi-mcp-baseline",
+  "multi-mcp-codemode",
 ];
 
 export type SmokeCheck =

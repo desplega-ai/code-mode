@@ -1,0 +1,32 @@
+id: multi-mcp-upsert
+prompt: |
+  You have a SQLite database at /workspace/bench.db accessible via the dbhub MCP
+  (tool prefix mcp__dbhub__). It has one table `products(id INTEGER PRIMARY KEY, name TEXT, price REAL)`
+  pre-seeded with three rows (ids 1..3).
+
+  Step 1 — Research: use the DeepWiki MCP (tool prefix mcp__deepwiki__) against
+  the repo `sqlite/sqlite` to confirm the correct SQLite `INSERT ... ON CONFLICT`
+  (UPSERT) syntax. One short lookup is enough; don't dump the whole doc.
+
+  Step 2 — Upsert these five rows into `products` using a single UPSERT
+  statement (or as few as possible). Two ids (1, 2) already exist and MUST be
+  updated in place; three are new:
+    (1, 'widget-pro',    12.99)
+    (2, 'gadget-pro',    18.50)
+    (4, 'flange',         6.75)
+    (5, 'bolt',           1.20)
+    (6, 'grommet',        2.40)
+
+  Step 3 — Query `SELECT id, name FROM products ORDER BY id` and print the final
+  result as a markdown table with columns "id" and "name". Then print a single
+  line: "final row count: N".
+timeout_seconds: 300
+smoke_check:
+  kind: includes_all
+  needles:
+    - "widget-pro"
+    - "gadget-pro"
+    - "flange"
+    - "bolt"
+    - "grommet"
+    - "final row count: 6"

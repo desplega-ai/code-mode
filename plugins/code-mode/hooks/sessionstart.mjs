@@ -15,7 +15,12 @@
 import { readdirSync, statSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { scanSdks, renderSdkSummary, listSavedScripts } from "./_shared.mjs";
+import {
+  scanSdks,
+  renderSdkSummary,
+  listSavedScripts,
+  codeModeToolPrefix,
+} from "./_shared.mjs";
 
 if (process.env.CODE_MODE_SKIP === "1") {
   process.stdout.write("{}");
@@ -41,11 +46,12 @@ function buildSdkBlock(cwd) {
         : scripts.total <= 10
           ? `Saved scripts: ${scripts.names.join(", ")}`
           : `Saved scripts: ${scripts.total} total — most recent: ${scripts.recent.join(", ")} (use __search to find more)`;
+    const p = codeModeToolPrefix(null, cwd);
     const parts = [
       "code-mode SDKs available:",
       body,
       "",
-      "Invoke any export via `mcp__plugin_code-mode_code-mode__run` with TS source that imports from `@/sdks/stdlib/...` or `@/sdks/.generated/<server>`.",
+      `Invoke any export via \`${p}run\` with TS source that imports from \`@/sdks/stdlib/...\` or \`@/sdks/.generated/<server>\`.`,
     ];
     if (scriptsLine) parts.push("", scriptsLine);
     return parts.join("\n");
@@ -73,15 +79,17 @@ try {
   // ignore cleanup errors entirely
 }
 
-const sdkBlock = buildSdkBlock(readSessionCwd());
+const sessionCwd = readSessionCwd();
+const sdkBlock = buildSdkBlock(sessionCwd);
+const p = codeModeToolPrefix(null, sessionCwd);
 
 const routingBody = `code-mode routing guidance:
 
-- Before writing throwaway TypeScript (inline snippets, scratch scripts, one-off transforms), call \`mcp__plugin_code-mode_code-mode__search\` first to check whether a saved script already solves the task. Reuse beats reinvention.
-- Before reaching for \`WebFetch\`, consider running the stdlib \`fetch\` helper via \`mcp__plugin_code-mode_code-mode__run\`. It has retries, timeout via AbortController, and typed JSON parsing built-in — strictly more capable than \`WebFetch\` for structured API work.
-- After writing a useful script, call \`mcp__plugin_code-mode_code-mode__save\` with a kebab-case \`name\` so future sessions can find it. The PostToolUse reindex hook handles the rest automatically.
+- Before writing throwaway TypeScript (inline snippets, scratch scripts, one-off transforms), call \`${p}search\` first to check whether a saved script already solves the task. Reuse beats reinvention.
+- Before reaching for \`WebFetch\`, consider running the stdlib \`fetch\` helper via \`${p}run\`. It has retries, timeout via AbortController, and typed JSON parsing built-in — strictly more capable than \`WebFetch\` for structured API work.
+- After writing a useful script, call \`${p}save\` with a kebab-case \`name\` so future sessions can find it. The PostToolUse reindex hook handles the rest automatically.
 - When an MCP tool is unavailable or blocked (see \`mcpBlockMode\` in \`.code-mode/config.json\`), consider whether a code-mode script using stdlib helpers (\`fetch\`, \`grep\`, \`glob\`, \`table\`, \`filter\`, \`flatten\`, \`fuzzy-match\`) can do the same job. Write inline with \`__run\` or save it with \`__save\` for reuse — don't give up just because \`__search\` returns nothing (it only finds existing scripts).
-- Available stdlib helpers (already seeded by \`code-mode init\` under \`.code-mode/sdks/stdlib/\`): \`fetch\`, \`grep\`, \`glob\`, \`fuzzy-match\`, \`table\`, \`filter\`, \`flatten\`. Query their signatures via \`mcp__plugin_code-mode_code-mode__query_types\` or search by keyword with \`__search\`.
+- Available stdlib helpers (already seeded by \`code-mode init\` under \`.code-mode/sdks/stdlib/\`): \`fetch\`, \`grep\`, \`glob\`, \`fuzzy-match\`, \`table\`, \`filter\`, \`flatten\`. Query their signatures via \`${p}query_types\` or search by keyword with \`__search\`.
 
 Escape hatch: set \`CODE_MODE_SKIP=1\` to bypass all code-mode hooks for the session.`;
 

@@ -82,17 +82,82 @@ export function readConfig(cwd) {
 }
 
 /**
+ * Matches code-mode's own MCP tools under BOTH shapes Claude Code uses
+ * for plugin-provided servers:
+ *   - `mcp__plugin_code-mode_code-mode__*` — marketplace plugin install
+ *     (Claude Code auto-prefixes plugin-loaded MCP servers).
+ *   - `mcp__code-mode__*`                  — direct `.mcp.json` entry
+ *     (internal bench, external bench adapter, any user who wires
+ *      code-mode manually).
+ * Both forms must be self-exempt — otherwise the block hook denies
+ * code-mode's own orchestration tool, leaving the agent with no way to
+ * escape to `__run`.
+ *
+ * Drift: mirrored in `packages/core/src/workspace/config.ts` as
+ * `CODE_MODE_SELF_TOOL_RE`.
+ */
+export const CODE_MODE_SELF_TOOL_RE = /^mcp__(?:plugin_code-mode_)?code-mode__/;
+
+/**
  * Returns true iff `toolName` should bypass the code-mode MCP hint/block.
- * `mcp__plugin_code-mode_*` is hardcoded-allowed; otherwise passes iff
- * `toolName` starts with any non-empty prefix in `cfg.mcpWhitelist`.
+ * code-mode's own tools are hardcoded-allowed (see CODE_MODE_SELF_TOOL_RE);
+ * otherwise passes iff `toolName` starts with any non-empty prefix in
+ * `cfg.mcpWhitelist`.
  */
 export function isMcpWhitelisted(toolName, cfg) {
-  if (toolName.startsWith("mcp__plugin_code-mode_")) return true;
+  if (CODE_MODE_SELF_TOOL_RE.test(toolName)) return true;
   for (const prefix of cfg.mcpWhitelist) {
     if (!prefix || prefix.length === 0) continue;
     if (toolName.startsWith(prefix)) return true;
   }
   return false;
+}
+
+/**
+ * Returns the code-mode MCP tool name prefix that's actually callable
+ * in this session. Needed because Claude Code registers plugin-provided
+ * MCP servers under two different shapes depending on load path
+ * (see CODE_MODE_SELF_TOOL_RE for context).
+ *
+ * Detection precedence:
+ *   1. If `hintToolName` is an MCP tool, infer from its prefix — a single
+ *      session uniformly uses one shape for all its MCP servers, so the
+ *      shape of *any* observed MCP tool tells us which form code-mode is
+ *      registered under here.
+ *   2. Else probe `${cwd}/.mcp.json` for a `code-mode` server entry.
+ *      Present → bare form (that's how direct-wire setups look).
+ *   3. Else if `process.env.CLAUDE_PLUGIN_ROOT` is set, we were launched
+ *      by the Claude Code plugin loader → plugin form.
+ *   4. Else default to bare form — the two bench paths that are actively
+ *      being exercised today, and a safe fallback for unknown launches.
+ */
+export function codeModeToolPrefix(hintToolName, cwd) {
+  if (typeof hintToolName === "string" && hintToolName.startsWith("mcp__")) {
+    return hintToolName.startsWith("mcp__plugin_")
+      ? "mcp__plugin_code-mode_code-mode__"
+      : "mcp__code-mode__";
+  }
+  if (typeof cwd === "string" && cwd.length > 0) {
+    try {
+      const mcpPath = join(cwd, ".mcp.json");
+      if (existsSync(mcpPath)) {
+        const raw = JSON.parse(readFileSync(mcpPath, "utf8"));
+        if (
+          raw && typeof raw === "object" &&
+          raw.mcpServers && typeof raw.mcpServers === "object" &&
+          Object.prototype.hasOwnProperty.call(raw.mcpServers, "code-mode")
+        ) {
+          return "mcp__code-mode__";
+        }
+      }
+    } catch {
+      // Hook must never fail the tool call — ignore probe errors.
+    }
+  }
+  if (process.env.CLAUDE_PLUGIN_ROOT) {
+    return "mcp__plugin_code-mode_code-mode__";
+  }
+  return "mcp__code-mode__";
 }
 
 // ─── Dedup state ──────────────────────────────────────────────────────
@@ -151,38 +216,46 @@ export function isInlineExec(command) {
 
 // ─── Message templates ────────────────────────────────────────────────
 
-export const WEBFETCH_HINT = `code-mode tip: before calling WebFetch, consider the stdlib \`fetch\` helper via code-mode.
+export function webfetchHint(cwd) {
+  const p = codeModeToolPrefix(null, cwd);
+  return `code-mode tip: before calling WebFetch, consider the stdlib \`fetch\` helper via code-mode.
 
 It has AbortController-based timeout, 5xx/network retries with exponential backoff, and typed JSON parsing. Copy-pasteable:
 
-  mcp__plugin_code-mode_code-mode__run({
+  ${p}run({
     source: "import { getJson } from '@/sdks/stdlib/fetch';\\nexport default async () => getJson<unknown>('https://example.com/api.json');"
   })
 
 Escape hatch: set CODE_MODE_SKIP=1 to silence all code-mode hooks.`;
+}
 
-export const BASH_GENERIC_HINT = `code-mode tip: for multi-step data transforms (parse JSON, reshape, filter, fuzzy-match, render as a table), prefer a saved code-mode script over a shell pipeline. \`mcp__plugin_code-mode_code-mode__search\` first, then \`__save\` when you've built something reusable.
+export function bashGenericHint(cwd) {
+  const p = codeModeToolPrefix(null, cwd);
+  return `code-mode tip: for multi-step data transforms (parse JSON, reshape, filter, fuzzy-match, render as a table), prefer a saved code-mode script over a shell pipeline. \`${p}search\` first, then \`__save\` when you've built something reusable.
 
 Escape hatch: CODE_MODE_SKIP=1.`;
+}
 
-export function bashInlineExecReason(command) {
+export function bashInlineExecReason(command, cwd) {
+  const p = codeModeToolPrefix(null, cwd);
   return `code-mode: \`${truncate(command, 80)}\` looks like inline-exec (node/bun/python/ruby/perl -e, -c, or heredoc-fed script). This is exactly the throwaway-TypeScript pattern code-mode replaces.
 
-Action: call \`mcp__plugin_code-mode_code-mode__save\` with the script and a kebab-case name, then \`__run\` it. You get typecheck, reuse across sessions, and the PostToolUse reindex picks it up automatically.
+Action: call \`${p}save\` with the script and a kebab-case name, then \`__run\` it. You get typecheck, reuse across sessions, and the PostToolUse reindex picks it up automatically.
 
 If you genuinely need this one-off, approve the tool call to proceed, or set CODE_MODE_SKIP=1 for the session.`;
 }
 
-export function mcpHintContext(toolName) {
+export function mcpHintContext(toolName, cwd) {
+  const p = codeModeToolPrefix(toolName, cwd);
   return `code-mode tip: \`${toolName}\` is not in your MCP whitelist.
 
 If this task can be done with HTTP / shell / filesystem / data transforms, prefer writing a code-mode script using stdlib helpers in \`.code-mode/sdks/stdlib/\` (\`fetch\`, \`grep\`, \`glob\`, \`table\`, \`filter\`, \`flatten\`, \`fuzzy-match\`):
 
-  mcp__plugin_code-mode_code-mode__run({ source: "..." })
+  ${p}run({ source: "..." })
   # or save+reuse:
-  mcp__plugin_code-mode_code-mode__save({ name: "...", source: "..." })
+  ${p}save({ name: "...", source: "..." })
 
-\`mcp__plugin_code-mode_code-mode__search\` only finds *existing* saved scripts — use it before authoring new ones.
+\`${p}search\` only finds *existing* saved scripts — use it before authoring new ones.
 
 If this MCP tool is fine and you don't want this hint again:
 
@@ -194,13 +267,14 @@ To tighten the default from hint → block: \`code-mode config set mcpBlockMode 
 }
 
 export function mcpBlockReason(toolName, cwd) {
+  const p = codeModeToolPrefix(toolName, cwd);
   const specific = cwd ? buildTypedSdkSnippet(toolName, cwd) : null;
   if (specific) {
     return `code-mode: \`${toolName}\` is blocked (mcpBlockMode=block).
 
 Use the typed SDK via __run:
 
-  mcp__plugin_code-mode_code-mode__run({
+  ${p}run({
     source: \`
 ${indent(specific.snippet, "      ")}
     \`
@@ -213,13 +287,13 @@ If you don't want this denied: \`code-mode config whitelist add ${guessPrefix(to
 If this task can be done with HTTP / shell / filesystem / data transforms,
 write a code-mode script instead:
 
-  mcp__plugin_code-mode_code-mode__run({ source: "..." })
+  ${p}run({ source: "..." })
   # or save+reuse:
-  mcp__plugin_code-mode_code-mode__save({ name: "...", source: "..." })
+  ${p}save({ name: "...", source: "..." })
 
 Stdlib helpers in .code-mode/sdks/stdlib/: fetch, grep, glob, table, filter,
 flatten, fuzzy-match. Check for existing scripts with
-mcp__plugin_code-mode_code-mode__search first (search only finds *existing*
+${p}search first (search only finds *existing*
 saved scripts — don't give up if it returns nothing).
 
 If the MCP is fine and you don't want this denied:

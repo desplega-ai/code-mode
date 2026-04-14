@@ -143,7 +143,7 @@ describe("config drift: _shared.mjs readConfig vs core loadConfig", () => {
 });
 
 describe("config drift: isMcpWhitelisted parity", () => {
-  test("code-mode's own tool passes in both", async () => {
+  test("code-mode's own tool passes in both (marketplace shape)", async () => {
     const shared = await loadShared();
     const cfg = defaultConfig();
     cfg.mcpWhitelist = [];
@@ -152,6 +152,36 @@ describe("config drift: isMcpWhitelisted parity", () => {
       coreIsMcpWhitelisted(tool, cfg),
     );
     expect(shared.isMcpWhitelisted(tool, cfg)).toBe(true);
+  });
+
+  test("code-mode's own tool passes in both (bare .mcp.json shape)", async () => {
+    const shared = await loadShared();
+    const cfg = defaultConfig();
+    cfg.mcpWhitelist = [];
+    // Regression guard: this shape is what the internal bench and the
+    // external MCP-Bench adapter produce. Both forms must self-exempt
+    // identically in hook and core.
+    for (const tool of [
+      "mcp__code-mode__run",
+      "mcp__code-mode__search",
+      "mcp__code-mode__save",
+    ]) {
+      expect(shared.isMcpWhitelisted(tool, cfg)).toBe(
+        coreIsMcpWhitelisted(tool, cfg),
+      );
+      expect(shared.isMcpWhitelisted(tool, cfg)).toBe(true);
+    }
+  });
+
+  test("code-mode-look-alike server is NOT self-exempted", async () => {
+    const shared = await loadShared();
+    const cfg = defaultConfig();
+    cfg.mcpWhitelist = [];
+    const tool = "mcp__code-mode-clone__search";
+    expect(shared.isMcpWhitelisted(tool, cfg)).toBe(
+      coreIsMcpWhitelisted(tool, cfg),
+    );
+    expect(shared.isMcpWhitelisted(tool, cfg)).toBe(false);
   });
 
   test("default whitelist prefix matches in both", async () => {

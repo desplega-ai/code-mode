@@ -128,12 +128,20 @@ export function saveConfig(workspacePath: string, cfg: CodeModeConfig): void {
 /**
  * Returns true iff `toolName` should bypass the code-mode MCP hint/block.
  *
- * - `mcp__plugin_code-mode_*` is hardcoded-allowed.
+ * - code-mode's own orchestration tools are hardcoded-allowed under BOTH
+ *   naming shapes Claude Code uses for plugin-provided MCP servers:
+ *     - `mcp__plugin_code-mode_code-mode__*` (marketplace plugin install)
+ *     - `mcp__code-mode__*`                  (direct `.mcp.json` entry)
+ *   Hook-loaded sessions see the bare form; marketplace-installed plugins
+ *   see the `plugin_` form. Both are legitimate — self-denying either
+ *   would break code-mode's own escape hatch.
  * - Otherwise passes iff `toolName` starts with any prefix in
  *   `cfg.mcpWhitelist`.
  */
+export const CODE_MODE_SELF_TOOL_RE = /^mcp__(?:plugin_code-mode_)?code-mode__/;
+
 export function isMcpWhitelisted(toolName: string, cfg: CodeModeConfig): boolean {
-  if (toolName.startsWith("mcp__plugin_code-mode_")) return true;
+  if (CODE_MODE_SELF_TOOL_RE.test(toolName)) return true;
   for (const prefix of cfg.mcpWhitelist) {
     if (prefix.length === 0) continue;
     if (toolName.startsWith(prefix)) return true;

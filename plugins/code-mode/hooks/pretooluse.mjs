@@ -12,11 +12,12 @@
 import {
   readConfig,
   isMcpWhitelisted,
+  CODE_MODE_SELF_TOOL_RE,
   readDedup,
   writeDedup,
   isInlineExec,
-  WEBFETCH_HINT,
-  BASH_GENERIC_HINT,
+  webfetchHint,
+  bashGenericHint,
   bashInlineExecReason,
   mcpHintContext,
   mcpBlockReason,
@@ -112,17 +113,17 @@ async function main() {
   let decision;
 
   if (toolName === "WebFetch") {
-    decision = allowWithContext(WEBFETCH_HINT);
+    decision = allowWithContext(webfetchHint(cwd));
   } else if (toolName === "Bash") {
     const cmd = typeof toolInput.command === "string" ? toolInput.command : "";
     if (isInlineExec(cmd)) {
-      decision = askWithReason(bashInlineExecReason(cmd));
+      decision = askWithReason(bashInlineExecReason(cmd, cwd));
     } else {
-      decision = allowWithContext(BASH_GENERIC_HINT);
+      decision = allowWithContext(bashGenericHint(cwd));
     }
   } else if (toolName.startsWith("mcp__")) {
-    // Own tools: silent pass, no dedup bump (avoid cluttering state).
-    if (toolName.startsWith("mcp__plugin_code-mode_")) {
+    // Own tools (both shapes): silent pass, no dedup bump.
+    if (CODE_MODE_SELF_TOOL_RE.test(toolName)) {
       emit({});
       return;
     }
@@ -135,7 +136,7 @@ async function main() {
     if (cfg.mcpBlockMode === "block") {
       decision = denyWithReason(mcpBlockReason(toolName, cwd));
     } else {
-      decision = allowWithContext(mcpHintContext(toolName));
+      decision = allowWithContext(mcpHintContext(toolName, cwd));
     }
   } else {
     // Not a tool we route on. Silent pass, no dedup bump.

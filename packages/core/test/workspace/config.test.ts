@@ -166,13 +166,26 @@ describe("saveConfig + round-trip", () => {
 });
 
 describe("isMcpWhitelisted", () => {
-  test("code-mode's own MCP tools always allowed", () => {
+  test("code-mode's own MCP tools always allowed (both shapes)", () => {
     const cfg = defaultConfig();
     cfg.mcpWhitelist = [];
+    // Marketplace-plugin shape.
     expect(
       isMcpWhitelisted("mcp__plugin_code-mode_code-mode__search", cfg),
     ).toBe(true);
-    expect(isMcpWhitelisted("mcp__plugin_code-mode_anything", cfg)).toBe(true);
+    expect(
+      isMcpWhitelisted("mcp__plugin_code-mode_code-mode__run", cfg),
+    ).toBe(true);
+    // Bare `.mcp.json` shape — used by the internal bench and the
+    // external MCP-Bench adapter. Must self-exempt or the block hook
+    // denies its own orchestration tool.
+    expect(isMcpWhitelisted("mcp__code-mode__search", cfg)).toBe(true);
+    expect(isMcpWhitelisted("mcp__code-mode__run", cfg)).toBe(true);
+    // Non-code-mode server that merely happens to share a substring
+    // must NOT be exempted.
+    expect(
+      isMcpWhitelisted("mcp__code-mode-clone__something", cfg),
+    ).toBe(false);
   });
 
   test("prefix match against whitelist", () => {

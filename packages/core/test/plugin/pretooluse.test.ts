@@ -97,8 +97,12 @@ describe("pretooluse hook — basic dispatch", () => {
     expect(r.parsed.hookSpecificOutput.permissionDecision).toBe("allow");
     expect(r.parsed.hookSpecificOutput.additionalContext).toBeTruthy();
     expect(r.parsed.hookSpecificOutput.additionalContext).toMatch(/fetch/i);
+    // Accept either the marketplace-plugin shape or the bare `.mcp.json`
+    // shape. In the test harness neither `CLAUDE_PLUGIN_ROOT` nor a
+    // workspace `.mcp.json` is set, so the resolver defaults to the
+    // bare form.
     expect(r.parsed.hookSpecificOutput.additionalContext).toMatch(
-      /mcp__plugin_code-mode_code-mode__run/,
+      /mcp__(?:plugin_code-mode_)?code-mode__run/,
     );
   });
 
@@ -268,7 +272,11 @@ export async function searchObjects(args: SearchObjectsArgs): Promise<SearchObje
     // Typed snippet markers.
     expect(reason).toMatch(/import \{ executeSql \}/);
     expect(reason).toMatch(/@\/sdks\/\.generated\/dbhub/);
-    expect(reason).toMatch(/mcp__plugin_code-mode_code-mode__run/);
+    // `dbhub` is a bare MCP server (workspace `.mcp.json` is a test-stub
+    // without a code-mode server), so the resolver should emit the bare
+    // `mcp__code-mode__run` form. The regex accepts both shapes
+    // defensively in case the workspace shape ever changes.
+    expect(reason).toMatch(/mcp__(?:plugin_code-mode_)?code-mode__run/);
     expect(reason).toMatch(/Other dbhub tools:.*searchObjects/);
     expect(reason).toMatch(/code-mode config whitelist add mcp__dbhub__/);
     rmSync(ws, { recursive: true, force: true });
@@ -315,6 +323,39 @@ export async function searchObjects(args: SearchObjectsArgs): Promise<SearchObje
       },
     );
     expect(r.parsed).toEqual({});
+    rmSync(ws, { recursive: true, force: true });
+  });
+
+  test("code-mode bare-form MCP tool → silent pass (regression: self-deny bug)", () => {
+    // Regression guard for the MCP-Bench block-variant failure on
+    // 2026-04-14. When code-mode is wired via `.mcp.json` (internal
+    // bench, external bench adapter) its tools register as
+    // `mcp__code-mode__*` with no `plugin_` infix. The hook used to
+    // hardcode the `mcp__plugin_code-mode_` prefix for self-exemption,
+    // so it denied its own `__run` tool and the agent had no escape
+    // hatch.
+    const ws = makeWorkspace({
+      mcpBlockMode: "block",
+      mcpWhitelist: [],
+      hooksEnabled: true,
+    });
+    for (const tool of [
+      "mcp__code-mode__run",
+      "mcp__code-mode__search",
+      "mcp__code-mode__save",
+      "mcp__code-mode__list_sdks",
+      "mcp__code-mode__query_types",
+    ]) {
+      const r = runHook(
+        { tool_name: tool, tool_input: {} },
+        {
+          env: { TMPDIR: isolatedTmp, CODE_MODE_MCP_BLOCK: "1" },
+          cwd: ws,
+          sessionId: `s-own-bare-${tool}`,
+        },
+      );
+      expect(r.parsed).toEqual({});
+    }
     rmSync(ws, { recursive: true, force: true });
   });
 

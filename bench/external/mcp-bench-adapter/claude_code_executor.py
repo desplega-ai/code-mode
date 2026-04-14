@@ -144,7 +144,13 @@ class ClaudeCodeExecutor:
 
         self.variant = os.environ.get("CODE_MODE_VARIANT", "baseline")
         self.model = os.environ.get("CLAUDE_CODE_MODEL", "claude-sonnet-4-6")
-        self.timeout_s = int(os.environ.get("CLAUDE_CODE_TIMEOUT_S", "300"))
+        # 900s default: single Wikipedia task on sonnet-4-6 runs ~294s
+        # real-time (see bench-log/2026-04-14-mcpbench-first-real-baseline.md),
+        # so 300s was already eating into the margin and killed the earlier
+        # run mid-thought. 900 leaves headroom for larger multi-MCP tasks
+        # and is still short enough that a dead process gets reaped in
+        # reasonable time.
+        self.timeout_s = int(os.environ.get("CLAUDE_CODE_TIMEOUT_S", "900"))
         self.repo_root = Path(__file__).resolve().parents[1]
 
         # Token tallies surfaced via judge fields.
@@ -265,6 +271,11 @@ class ClaudeCodeExecutor:
         """Walk Claude Code stream-json events and synthesise the dict
         shape MCP-Bench's judge expects."""
         execution_results: List[Dict[str, Any]] = []
+        # Map tool_use id → index in `execution_results`, so the matching
+        # `tool_result` (arriving in a later `user` event) can backfill
+        # `success`. Without this, MCP-Bench's `tool_call_success_rate`
+        # metric stays pinned at 0.0 for every run.
+        tool_use_by_id: Dict[str, int] = {}
         accumulated: List[str] = []
         final_text = ""
         rounds = 0
@@ -290,11 +301,18 @@ class ClaudeCodeExecutor:
                             final_text = text
                             accumulated.append(f"[assistant] {text}")
                     elif block.get("type") == "tool_use":
-                        execution_results.append({
+                        entry = {
                             "tool_name": block.get("name", "?"),
                             "tool_input": block.get("input", {}),
                             "round": rounds,
-                        })
+                            # Optimistic default — flipped on matching
+                            # tool_result.is_error below.
+                            "success": True,
+                        }
+                        tool_use_id = block.get("id")
+                        if isinstance(tool_use_id, str) and tool_use_id:
+                            tool_use_by_id[tool_use_id] = len(execution_results)
+                        execution_results.append(entry)
                 usage = msg.get("usage", {})
                 self.total_prompt_tokens += int(usage.get("input_tokens", 0))
                 self.total_output_tokens += int(usage.get("output_tokens", 0))
@@ -302,6 +320,10 @@ class ClaudeCodeExecutor:
                 msg = evt.get("message", {})
                 for block in msg.get("content", []):
                     if block.get("type") == "tool_result":
+                        tool_use_id = block.get("tool_use_id")
+                        is_error = bool(block.get("is_error"))
+                        if isinstance(tool_use_id, str) and tool_use_id in tool_use_by_id:
+                            execution_results[tool_use_by_id[tool_use_id]]["success"] = not is_error
                         content = block.get("content", "")
                         if isinstance(content, list):
                             content = " ".join(

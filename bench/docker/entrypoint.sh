@@ -86,6 +86,42 @@ JSON
       sqlite3 /workspace/bench.db < /workspace/task.sql
     fi
     ;;
+  multi-mcp-block)
+    # dbhub + deepwiki + code-mode, with CODE_MODE_MCP_BLOCK=1 so direct calls
+    # to dbhub/deepwiki are REFUSED by code-mode's PreToolUse hook — forcing
+    # the model to either route through mcp__code-mode__run using the
+    # auto-generated SDKs, or give up.
+    #
+    # IMPORTANT: Claude Code's `--plugin-dir` loads the plugin's MCP + emits
+    # its SessionStart context, but DOES NOT register the plugin's PreToolUse
+    # hooks (verified empirically — they never fire for mcp__dbhub__* calls).
+    # So we ALSO register the hook directly in settings.json, pointing at the
+    # plugin's script on the mounted volume. This is the only way block mode
+    # actually activates under `.mcp.json`-declared external MCPs today.
+    cat > /workspace/.mcp.json <<'JSON'
+{"mcpServers":{"dbhub":{"command":"npx","args":["-y","@bytebase/dbhub@latest","--transport","stdio","--dsn","sqlite:///workspace/bench.db"]},"deepwiki":{"type":"http","url":"https://mcp.deepwiki.com/mcp"},"code-mode":{"command":"code-mode","args":["mcp"]}}}
+JSON
+    cat > "$HOME/.claude/settings.json" <<'JSON'
+{"enableAllProjectMcpServers":true,"enabledMcpjsonServers":["dbhub","deepwiki","code-mode"],"hooks":{"PreToolUse":[{"matcher":"mcp__.*","hooks":[{"type":"command","command":"node /plugin/code-mode/hooks/pretooluse.mjs"}]}]}}
+JSON
+
+    if [ ! -f /plugin/code-mode/hooks/pretooluse.mjs ]; then
+      echo "entrypoint: /plugin/code-mode/hooks/pretooluse.mjs missing — block mode will not activate" >&2
+      exit 2
+    fi
+
+    if [ -f /workspace/task.sql ]; then
+      sqlite3 /workspace/bench.db < /workspace/task.sql
+    fi
+    if [ ! -d /workspace/.code-mode ]; then
+      code-mode init /workspace >/dev/null || true
+    fi
+    (cd /workspace && code-mode reindex >/dev/null) || true
+    # Enforce block mode: PreToolUse hook refuses mcp__* tools not on the
+    # whitelist. Default whitelist doesn't include dbhub/deepwiki, so any
+    # direct call to them is denied with a reason steering toward __run.
+    export CODE_MODE_MCP_BLOCK=1
+    ;;
   multi-mcp-codemode)
     # dbhub + deepwiki + code-mode. code-mode init introspects the other two
     # and emits typed SDK wrappers, so the model can route through __run.

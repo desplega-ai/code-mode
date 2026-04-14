@@ -67,7 +67,11 @@ export async function runOne(opts: RunOpts): Promise<RunResult> {
   }
   // multi-mcp-* variants deliberately receive NO seeds — we want to observe
   // whether the model reaches for the MCP-provided SDKs/tools natively.
-  if (variant === "multi-mcp-baseline" || variant === "multi-mcp-codemode") {
+  if (
+    variant === "multi-mcp-baseline" ||
+    variant === "multi-mcp-codemode" ||
+    variant === "multi-mcp-block"
+  ) {
     seedsDir = null;
   }
 
@@ -106,10 +110,15 @@ export async function runOne(opts: RunOpts): Promise<RunResult> {
 
     args.push("-v", `${workdir}:/workspace`);
     if (seedsDir) args.push("-v", `${seedsDir}:/seeds:ro`);
-    if (variant === "code-mode-plugin" || variant === "code-mode-subagent") {
+    if (
+      variant === "code-mode-plugin" ||
+      variant === "code-mode-subagent" ||
+      variant === "multi-mcp-block"
+    ) {
       // Mount the host plugin read-only. Entrypoint passes this path via
       // `--plugin-dir` so Claude Code loads hooks/agents/MCP from the
-      // plugin's own manifest.
+      // plugin's own manifest. multi-mcp-block needs the plugin so its
+      // PreToolUse hook can enforce CODE_MODE_MCP_BLOCK.
       args.push("-v", `${pluginDir}:/plugin/code-mode:ro`);
     }
     args.push(image);

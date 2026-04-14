@@ -1,0 +1,37 @@
+id: api-knowledge-compound
+# Bench B — cross-session persistence.
+# Hypothesis: if session 1 saves a fetchPRs(repo, state) script under .code-mode/,
+# session 2 should find & re-run it via __search/__run and be dramatically
+# cheaper / faster than baseline, which has no persistence.
+#
+# Auth: set BENCH_FORWARD_GITHUB_TOKEN=ghp_... in bench/.env to avoid unauthenticated
+# rate-limit flakiness. Without a token, 60 req/h/IP is usually enough for N=1 but
+# not for reliable reruns.
+sessions:
+  - id: s1
+    prompt: |
+      Fetch the 5 most recently closed pull requests from GitHub for the repo
+      `anthropics/claude-code` and print each on its own line in the format:
+      "#<number> <title>". One line per PR, no other output.
+
+      Use any tools you have available. If you can save a reusable typed
+      script for fetching GitHub pull requests by repo and state, do so —
+      a future session may ask for the same data with a different state.
+    timeout_seconds: 300
+    smoke_check:
+      kind: regex
+      pattern: "^#\\d+ "
+      flags: m
+  - id: s2
+    prompt: |
+      Fetch the 5 most recently opened (open) pull requests from GitHub for
+      the repo `anthropics/claude-code` and print each on its own line in
+      the format: "#<number> <title>". One line per PR, no other output.
+
+      If a prior session saved a script that can fetch GitHub PRs, reuse it
+      instead of writing new code.
+    timeout_seconds: 300
+    smoke_check:
+      kind: regex
+      pattern: "^#\\d+ "
+      flags: m

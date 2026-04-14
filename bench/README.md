@@ -7,6 +7,8 @@ Benchmark harness for code-mode. Runs the same task prompts in isolated Docker c
 - `baseline` — plain Claude Code, no MCPs.
 - `code-mode-generic` — code-mode MCP registered + a shared generic seed library from `seeds/generic/`.
 - `code-mode-tailored` — code-mode MCP registered + task-specific seeds from `tasks/<id>/seeds/`.
+- `code-mode-plugin` — mounts the host `plugins/code-mode/` into the container and launches Claude with `--plugin-dir`, so the plugin's SessionStart routing hook, PreToolUse hints, and code-mode skill all fire on top of the tailored-seeds setup. Falls back to generic seeds when a task has none.
+- `code-mode-subagent` — same as `code-mode-plugin`, plus the plugin's `scripter` sub-agent is discoverable via `Task(subagent_type: scripter)`. Use to measure delegation behaviour.
 
 ## Quickstart
 
@@ -32,7 +34,7 @@ Reports land in `results/<run-id>/report.md` and `report.json`.
 ```
 bun run bench \
   --tasks tasks/                   # or a single task dir
-  --variants baseline,code-mode-generic,code-mode-tailored
+  --variants baseline,code-mode-generic,code-mode-tailored,code-mode-plugin,code-mode-subagent
   --models sonnet,opus             # aliases, or full IDs like claude-sonnet-4-6
   --reps 3
   --concurrency 2

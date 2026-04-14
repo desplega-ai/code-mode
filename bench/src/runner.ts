@@ -2,14 +2,22 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { runOne } from "./docker.ts";
+import { runOne, runSessions } from "./docker.ts";
 import { loadDotEnv } from "./env.ts";
-import { writeReport } from "./report.ts";
+import { writeReport, writeSessionReport } from "./report.ts";
+import { loadSessionTasks } from "./session-tasks.ts";
 import { loadTasks } from "./tasks.ts";
-import { ALL_VARIANTS, type RunResult, type Variant } from "./types.ts";
+import {
+  ALL_VARIANTS,
+  type RunResult,
+  type SessionRunResult,
+  type Variant,
+} from "./types.ts";
 
 interface CliArgs {
   tasks: string;
+  sessionTasks: string | null;
+  keepWorkdir: boolean;
   variants: Variant[];
   models: string[];
   reps: number;
@@ -43,6 +51,8 @@ function parseModels(s: string): string[] {
 function parseArgs(argv: string[]): CliArgs {
   const defaults: CliArgs = {
     tasks: "tasks",
+    sessionTasks: null,
+    keepWorkdir: false,
     variants: [...ALL_VARIANTS],
     models: [DEFAULT_MODEL],
     reps: 3,
@@ -60,6 +70,8 @@ function parseArgs(argv: string[]): CliArgs {
     };
     switch (arg) {
       case "--tasks": defaults.tasks = eat(); break;
+      case "--session-tasks": defaults.sessionTasks = eat(); break;
+      case "--keep-workdir": defaults.keepWorkdir = true; break;
       case "--variants": defaults.variants = parseVariants(eat()); break;
       case "--models": defaults.models = parseModels(eat()); break;
       case "--model": defaults.models = [resolveModel(eat())]; break;
@@ -109,7 +121,11 @@ Usage: bun run bench [flags]
 
 Flags:
   --tasks PATH           Task dir or parent of task dirs (default: tasks)
-  --variants CSV         baseline,code-mode-generic,code-mode-tailored
+  --session-tasks PATH   Session-task dir or parent. When set, runs Bench B
+                         (cross-session persistence) instead of --tasks.
+  --keep-workdir         Don't clean up workdirs after session runs (debug).
+  --variants CSV         baseline,code-mode-generic,code-mode-tailored,
+                         code-mode-plugin,code-mode-subagent
   --models CSV           Model IDs/aliases, e.g. sonnet,opus or
                          claude-sonnet-4-6,claude-opus-4-6
                          (default: ${DEFAULT_MODEL})
@@ -188,13 +204,31 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const tasksPath = resolve(benchRoot, args.tasks);
-  const tasks = loadTasks(tasksPath);
   const genericSeedsDir = join(benchRoot, "seeds", "generic");
+  // Host path to the code-mode plugin. Mounted into the container for the
+  // `code-mode-plugin` and `code-mode-subagent` variants so Claude Code can
+  // discover its SessionStart/PreToolUse hooks, MCP server, and sub-agents.
+  const pluginDir = resolve(benchRoot, "..", "plugins", "code-mode");
   const outDir = resolve(benchRoot, args.out);
   mkdirSync(join(outDir, "raw"), { recursive: true });
 
   const runId = timestamp();
+
+  if (args.sessionTasks) {
+    await runSessionTasksMode({
+      benchRoot,
+      path: args.sessionTasks,
+      args,
+      runId,
+      outDir,
+      genericSeedsDir,
+      pluginDir,
+    });
+    return;
+  }
+
+  const tasksPath = resolve(benchRoot, args.tasks);
+  const tasks = loadTasks(tasksPath);
   const jobs: Job[] = [];
   for (const task of tasks) {
     for (const variant of args.variants) {
@@ -205,7 +239,7 @@ async function main(): Promise<void> {
             variant,
             model,
             rep,
-            run: () => runOne({ task, variant, model, rep, runId, image: args.image, genericSeedsDir }),
+            run: () => runOne({ task, variant, model, rep, runId, image: args.image, genericSeedsDir, pluginDir }),
           });
         }
       }
@@ -224,6 +258,111 @@ async function main(): Promise<void> {
 
   writeReport(outDir, results);
   console.log(`\n[bench] done. report: ${join(outDir, "report.md")}`);
+}
+
+interface SessionModeOpts {
+  benchRoot: string;
+  path: string;
+  args: CliArgs;
+  runId: string;
+  outDir: string;
+  genericSeedsDir: string;
+  pluginDir: string;
+}
+
+async function runSessionTasksMode(opts: SessionModeOpts): Promise<void> {
+  const { benchRoot, path, args, runId, outDir, genericSeedsDir, pluginDir } = opts;
+  const sessionTasks = loadSessionTasks(resolve(benchRoot, path));
+
+  const total =
+    sessionTasks.length * args.variants.length * args.models.length * args.reps;
+  console.log(
+    `[bench:B] ${total} session-runs across ${sessionTasks.length} session-task(s), ${args.variants.length} variant(s), ${args.models.length} model(s), ${args.reps} rep(s)`,
+  );
+  console.log(
+    `[bench:B] models=${args.models.join(",")} concurrency=${args.concurrency} image=${args.image} out=${outDir}`,
+  );
+
+  interface SJob {
+    label: string;
+    run: () => Promise<SessionRunResult>;
+  }
+  const jobs: SJob[] = [];
+  for (const st of sessionTasks) {
+    for (const variant of args.variants) {
+      for (const model of args.models) {
+        for (let rep = 1; rep <= args.reps; rep++) {
+          jobs.push({
+            label: `${st.id}/${variant}/${model} rep=${rep}`,
+            run: () =>
+              runSessions({
+                sessionTask: st,
+                variant,
+                model,
+                rep,
+                runId,
+                image: args.image,
+                genericSeedsDir,
+                pluginDir,
+                keepWorkdir: args.keepWorkdir,
+              }),
+          });
+        }
+      }
+    }
+  }
+
+  const results: SessionRunResult[] = [];
+  let cursor = 0;
+  const workers: Promise<void>[] = [];
+  for (let w = 0; w < Math.max(1, args.concurrency); w++) {
+    workers.push((async () => {
+      while (true) {
+        const idx = cursor;
+        cursor += 1;
+        if (idx >= jobs.length) return;
+        const job = jobs[idx]!;
+        const tag = `[${idx + 1}/${jobs.length}] ${job.label}`;
+        const t0 = Date.now();
+        process.stderr.write(`${tag} starting\n`);
+        try {
+          const r = await job.run();
+          const okAll = r.sessions.every((s) => s.status === "ok");
+          process.stderr.write(
+            `${tag} ${okAll ? "ok" : "MIXED"} in ${Date.now() - t0}ms (${r.sessions.length} sessions)\n`,
+          );
+          results.push(r);
+        } catch (err) {
+          process.stderr.write(
+            `${tag} CRASH: ${err instanceof Error ? err.message : err}\n`,
+          );
+        }
+      }
+    })());
+  }
+  await Promise.all(workers);
+
+  // Persist each session as its own raw JSON for easy inspection.
+  for (const sr of results) {
+    for (const s of sr.sessions) {
+      const file = join(
+        outDir,
+        "raw",
+        `${sr.session_task_id}.${sr.variant}.${safeModel(sr.model)}.${sr.rep}.${s.session_id}.json`,
+      );
+      writeFileSync(file, JSON.stringify(s, null, 2));
+    }
+    // Also persist the pair-wrapper for convenience.
+    const pairFile = join(
+      outDir,
+      "raw",
+      `${sr.session_task_id}.${sr.variant}.${safeModel(sr.model)}.${sr.rep}.pair.json`,
+    );
+    writeFileSync(pairFile, JSON.stringify(sr, null, 2));
+  }
+
+  writeSessionReport(outDir, results);
+  console.log(`\n[bench:B] done. report: ${join(outDir, "session-report.md")}`);
 }
 
 main().catch((err) => {

@@ -6,6 +6,14 @@ description: Use code-mode to save, search, and re-run typed TypeScript scripts 
 
 You have access to a persistent script library via the `code-mode` MCP server. Before writing a new throwaway script, **search first**.
 
+## Delegate the write/run loop to the `scripter` sub-agent
+
+Whenever you would write, iterate on, or run a code-mode script, **delegate the task to the `scripter` sub-agent** (Task tool with `subagent_type: scripter`) instead of doing it inline. The sub-agent owns the full `search → (save) → run → return-result` loop in its own context window, and returns only the final typed result plus a one-line summary. This keeps your own context free of TS source, typecheck errors, and intermediate stdout — which is the whole point of code-mode.
+
+Delegate with a focused goal, e.g.: *"Write/find and run a script that fetches open PRs for repo X and returns their titles + urls. Save if reusable."* Do not ask the sub-agent for its TypeScript source.
+
+Only skip delegation if the parent session already has the script source on screen and you're doing a trivial one-line edit.
+
 ## When to use
 
 - The user asks you to do a task that looks like "hit an API, parse JSON, transform X, write a file" — these tend to repeat across sessions.

@@ -133,7 +133,7 @@ async function main() {
       return;
     }
     if (cfg.mcpBlockMode === "block") {
-      decision = denyWithReason(mcpBlockReason(toolName));
+      decision = denyWithReason(mcpBlockReason(toolName, cwd));
     } else {
       decision = allowWithContext(mcpHintContext(toolName));
     }

@@ -228,6 +228,75 @@ describe("pretooluse hook — MCP dispatch", () => {
     rmSync(ws, { recursive: true, force: true });
   });
 
+  test("non-whitelisted MCP tool with a generated SDK → deny + typed snippet", () => {
+    const ws = makeWorkspace({
+      mcpBlockMode: "block",
+      mcpWhitelist: [],
+      hooksEnabled: true,
+    });
+    // Seed a generated SDK for a fake `dbhub` server.
+    const genDir = join(ws, ".code-mode", "sdks", ".generated");
+    mkdirSync(genDir, { recursive: true });
+    writeFileSync(
+      join(genDir, "dbhub.ts"),
+      `import { callTool } from "./_client";
+export interface ExecuteSqlArgs { sql: string }
+export type ExecuteSqlResult = unknown;
+export async function executeSql(args: ExecuteSqlArgs): Promise<ExecuteSqlResult> {
+  return callTool("dbhub", "execute_sql", args as unknown as Record<string, unknown>) as Promise<ExecuteSqlResult>;
+}
+
+export interface SearchObjectsArgs { pattern: string }
+export type SearchObjectsResult = unknown;
+export async function searchObjects(args: SearchObjectsArgs): Promise<SearchObjectsResult> {
+  return callTool("dbhub", "search_objects", args as unknown as Record<string, unknown>) as Promise<SearchObjectsResult>;
+}
+`,
+      "utf8",
+    );
+
+    const r = runHook(
+      { tool_name: "mcp__dbhub__execute_sql", tool_input: { sql: "SELECT 1" } },
+      {
+        env: { TMPDIR: isolatedTmp, CODE_MODE_MCP_BLOCK: "1" },
+        cwd: ws,
+        sessionId: "s-dbhub-block",
+      },
+    );
+    expect(r.parsed.hookSpecificOutput.permissionDecision).toBe("deny");
+    const reason = r.parsed.hookSpecificOutput.permissionDecisionReason;
+    // Typed snippet markers.
+    expect(reason).toMatch(/import \{ executeSql \}/);
+    expect(reason).toMatch(/@\/sdks\/\.generated\/dbhub/);
+    expect(reason).toMatch(/mcp__plugin_code-mode_code-mode__run/);
+    expect(reason).toMatch(/Other dbhub tools:.*searchObjects/);
+    expect(reason).toMatch(/code-mode config whitelist add mcp__dbhub__/);
+    rmSync(ws, { recursive: true, force: true });
+  });
+
+  test("non-whitelisted MCP tool with NO generated SDK → deny + generic message", () => {
+    const ws = makeWorkspace({
+      mcpBlockMode: "block",
+      mcpWhitelist: [],
+      hooksEnabled: true,
+    });
+    const r = runHook(
+      { tool_name: "mcp__ghostsvc__frobnicate", tool_input: {} },
+      {
+        env: { TMPDIR: isolatedTmp, CODE_MODE_MCP_BLOCK: "1" },
+        cwd: ws,
+        sessionId: "s-ghost-block",
+      },
+    );
+    expect(r.parsed.hookSpecificOutput.permissionDecision).toBe("deny");
+    const reason = r.parsed.hookSpecificOutput.permissionDecisionReason;
+    // Must NOT include a typed-import line, should fall back to the generic.
+    expect(reason).not.toMatch(/import \{/);
+    expect(reason).toMatch(/is not whitelisted and mcpBlockMode=block/);
+    expect(reason).toMatch(/stdlib\//);
+    rmSync(ws, { recursive: true, force: true });
+  });
+
   test("code-mode's own MCP tool → silent pass regardless of config", () => {
     const ws = makeWorkspace({
       mcpBlockMode: "block",

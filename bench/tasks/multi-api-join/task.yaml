@@ -1,0 +1,11 @@
+id: multi-api-join
+prompt: |
+  Fetch https://jsonplaceholder.typicode.com/users and https://jsonplaceholder.typicode.com/posts.
+  For each of the first 5 users (sorted by id ascending), print one line in the format:
+  "<name> — <post_count> posts"
+  where post_count is the number of posts whose userId matches that user's id.
+timeout_seconds: 300
+smoke_check:
+  kind: regex
+  pattern: "\\w.*—\\s+\\d+\\s+posts"
+  flags: m

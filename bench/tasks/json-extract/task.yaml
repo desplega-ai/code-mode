@@ -1,0 +1,8 @@
+id: json-extract
+prompt: |
+  Read /workspace/data.json and print the `email` field of every user where `active` is true.
+  One email per line, no other output.
+timeout_seconds: 120
+smoke_check:
+  kind: includes_all
+  needles: ["alice@example.com", "carol@example.com", "dave@example.com"]

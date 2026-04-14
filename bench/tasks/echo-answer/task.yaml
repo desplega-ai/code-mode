@@ -1,0 +1,7 @@
+id: echo-answer
+prompt: |
+  What is 7 times 13? Reply with just the number, nothing else.
+timeout_seconds: 60
+smoke_check:
+  kind: includes_all
+  needles: ["91"]

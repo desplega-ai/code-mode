@@ -1,0 +1,9 @@
+id: api-fetch-retry
+prompt: |
+  Fetch https://httpbin.org/status/503 with up to 3 retry attempts using exponential backoff
+  (start at 200ms, double each retry). Report the final HTTP status code and the number of
+  attempts made. Reply in the format: "status=<code> attempts=<n>".
+timeout_seconds: 180
+smoke_check:
+  kind: regex
+  pattern: "status=\\d+\\s+attempts=\\d"

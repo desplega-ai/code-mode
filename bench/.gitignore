@@ -1,0 +1,4 @@
+.env
+results/
+node_modules/
+_bench_favor/

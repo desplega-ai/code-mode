@@ -1,0 +1,12 @@
+id: todos-completion
+prompt: |
+  Fetch https://jsonplaceholder.typicode.com/todos (200 items). Group by userId and
+  compute each user's completion rate (completed=true / total). Report the top 5 users
+  by completion rate, breaking ties by userId ascending. One user per line in the format:
+  "user=<id> rate=<percent>%"
+  where <percent> is rounded to the nearest whole number.
+timeout_seconds: 240
+smoke_check:
+  kind: regex
+  pattern: "user=\\d+\\s+rate=\\d+%"
+  flags: m

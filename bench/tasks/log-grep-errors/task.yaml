@@ -1,0 +1,9 @@
+id: log-grep-errors
+prompt: |
+  In /workspace/logs/*.log, find all lines at level ERROR. Group them by the error message
+  (the text after "ERROR: "). Report the top 3 error messages by count, one per line, in
+  the format: "<count> <message>". Sort by count descending.
+timeout_seconds: 300
+smoke_check:
+  kind: includes_all
+  needles: ["ConnectionReset", "TimeoutError", "OutOfMemory"]

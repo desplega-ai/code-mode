@@ -1,0 +1,21 @@
+{
+  "name": "@code-mode/bench",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Benchmark harness for code-mode: runs the same tasks in Docker across baseline vs code-mode variants.",
+  "bin": {
+    "bench": "./src/runner.ts"
+  },
+  "scripts": {
+    "bench": "bun run src/runner.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "yaml": "^2.5.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.5.0"
+  }
+}

@@ -1,0 +1,13 @@
+id: orders-dedupe
+prompt: |
+  In /workspace/orders/*.jsonl each line is a JSON order with fields:
+  {"order_id": "...", "customer_id": "...", "amount": <number>, "ts": "<ISO8601>"}.
+  Some orders appear multiple times across files with different timestamps (amendments);
+  for each order_id keep only the row with the LATEST ts. Then sum `amount` per
+  customer_id. Report the top 3 customers by total revenue, one per line, in the format:
+  "<customer_id> <total>"
+  where <total> is the sum rounded to 2 decimal places. Sort descending by total.
+timeout_seconds: 300
+smoke_check:
+  kind: includes_all
+  needles: ["cust_114", "cust_112", "cust_106"]

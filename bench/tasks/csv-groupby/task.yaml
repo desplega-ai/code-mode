@@ -1,0 +1,9 @@
+id: csv-groupby
+prompt: |
+  Read /workspace/sales.csv. Each row has columns: date, region, product, amount.
+  Compute the total `amount` per region and print a markdown table with columns
+  "Region" and "Total", sorted by Total descending.
+timeout_seconds: 240
+smoke_check:
+  kind: includes_all
+  needles: ["| Region", "| Total"]

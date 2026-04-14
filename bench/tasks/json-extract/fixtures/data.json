@@ -1,0 +1,10 @@
+{
+  "users": [
+    {"id": 1, "name": "Alice", "email": "alice@example.com", "active": true},
+    {"id": 2, "name": "Bob", "email": "bob@example.com", "active": false},
+    {"id": 3, "name": "Carol", "email": "carol@example.com", "active": true},
+    {"id": 4, "name": "Dave", "email": "dave@example.com", "active": true},
+    {"id": 5, "name": "Eve", "email": "eve@example.com", "active": false},
+    {"id": 6, "name": "Frank", "email": "frank@example.com", "active": false}
+  ]
+}

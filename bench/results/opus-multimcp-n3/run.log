@@ -1,0 +1,23 @@
+$ bun run src/runner.ts --tasks tasks/multi-mcp-upsert --variants "multi-mcp-baseline,multi-mcp-codemode,multi-mcp-block" --models opus --reps "3" --concurrency "2" --out "results/opus-multimcp-n3"
+[bench] 9 runs across 1 task(s), 3 variant(s), 1 model(s), 3 rep(s)
+[bench] models=claude-opus-4-6 concurrency=2 image=code-mode-bench:latest out=/Users/taras/Documents/code/code-mode/bench/results/opus-multimcp-n3
+[1/9] multi-mcp-upsert/multi-mcp-baseline/claude-opus-4-6 rep=1 starting
+[2/9] multi-mcp-upsert/multi-mcp-baseline/claude-opus-4-6 rep=2 starting
+[2/9] multi-mcp-upsert/multi-mcp-baseline/claude-opus-4-6 rep=2 ok in 52813ms
+[3/9] multi-mcp-upsert/multi-mcp-baseline/claude-opus-4-6 rep=3 starting
+[1/9] multi-mcp-upsert/multi-mcp-baseline/claude-opus-4-6 rep=1 ok in 69341ms
+[4/9] multi-mcp-upsert/multi-mcp-codemode/claude-opus-4-6 rep=1 starting
+[3/9] multi-mcp-upsert/multi-mcp-baseline/claude-opus-4-6 rep=3 ok in 45761ms
+[5/9] multi-mcp-upsert/multi-mcp-codemode/claude-opus-4-6 rep=2 starting
+[4/9] multi-mcp-upsert/multi-mcp-codemode/claude-opus-4-6 rep=1 ok in 74956ms
+[6/9] multi-mcp-upsert/multi-mcp-codemode/claude-opus-4-6 rep=3 starting
+[5/9] multi-mcp-upsert/multi-mcp-codemode/claude-opus-4-6 rep=2 ok in 57928ms
+[7/9] multi-mcp-upsert/multi-mcp-block/claude-opus-4-6 rep=1 starting
+[6/9] multi-mcp-upsert/multi-mcp-codemode/claude-opus-4-6 rep=3 ok in 69585ms
+[8/9] multi-mcp-upsert/multi-mcp-block/claude-opus-4-6 rep=2 starting
+[7/9] multi-mcp-upsert/multi-mcp-block/claude-opus-4-6 rep=1 ok in 97188ms
+[9/9] multi-mcp-upsert/multi-mcp-block/claude-opus-4-6 rep=3 starting
+[8/9] multi-mcp-upsert/multi-mcp-block/claude-opus-4-6 rep=2 ok in 125563ms
+[9/9] multi-mcp-upsert/multi-mcp-block/claude-opus-4-6 rep=3 ok in 106460ms
+
+[bench] done. report: /Users/taras/Documents/code/code-mode/bench/results/opus-multimcp-n3/report.md

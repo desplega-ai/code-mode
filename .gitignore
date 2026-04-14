@@ -5,3 +5,4 @@ dist/
 bun.lockb
 *.tgz
 examples/mcp-e2e/workspace/
+/external/

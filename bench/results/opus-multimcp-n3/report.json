@@ -1,0 +1,90 @@
+{
+  "run_id": "2026-04-14T13-58-37-989Z",
+  "models": [
+    "claude-opus-4-6"
+  ],
+  "tasks": {
+    "multi-mcp-upsert": {
+      "claude-opus-4-6": {
+        "multi-mcp-baseline": {
+          "n": 3,
+          "ok": 3,
+          "skipped": 0,
+          "failed": 0,
+          "wall_ms": {
+            "median": 52813,
+            "min": 45760,
+            "max": 69335
+          },
+          "tokens_total": {
+            "median": 398669,
+            "min": 384274,
+            "max": 417826
+          },
+          "cost_usd": {
+            "median": 0.1435835,
+            "min": 0.10102449999999999,
+            "max": 0.15679149999999997
+          },
+          "tool_calls_total": {
+            "median": 7,
+            "min": 6,
+            "max": 7
+          }
+        },
+        "multi-mcp-codemode": {
+          "n": 3,
+          "ok": 3,
+          "skipped": 0,
+          "failed": 0,
+          "wall_ms": {
+            "median": 69023,
+            "min": 57375,
+            "max": 74560
+          },
+          "tokens_total": {
+            "median": 301491,
+            "min": 281051,
+            "max": 304227
+          },
+          "cost_usd": {
+            "median": 0.080768,
+            "min": 0.078335,
+            "max": 0.12070449999999999
+          },
+          "tool_calls_total": {
+            "median": 5,
+            "min": 4,
+            "max": 5
+          }
+        },
+        "multi-mcp-block": {
+          "n": 3,
+          "ok": 3,
+          "skipped": 0,
+          "failed": 0,
+          "wall_ms": {
+            "median": 105933,
+            "min": 96533,
+            "max": 124987
+          },
+          "tokens_total": {
+            "median": 670335,
+            "min": 669205,
+            "max": 868574
+          },
+          "cost_usd": {
+            "median": 0.18046099999999998,
+            "min": 0.17240499999999997,
+            "max": 0.24242900000000003
+          },
+          "tool_calls_total": {
+            "median": 12,
+            "min": 11,
+            "max": 13
+          }
+        }
+      }
+    }
+  }
+}

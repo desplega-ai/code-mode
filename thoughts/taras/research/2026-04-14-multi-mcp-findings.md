@@ -77,6 +77,20 @@ The codemode variant's `ToolSearch=1` vs baseline's `ToolSearch=2–3` is the gi
 3. **Bench B cross-session persistence at N=3**. N=1 showed −29% s2 cost. If this holds at N=3, it's a second independent positive signal.
 4. **Different models**: the whole positive signal is Sonnet 4.6. Does it hold on Haiku 4.5 (cheaper, weaker planning)? On Opus 4.6 (better planning, maybe less susceptible to speculative ToolSearch)?
 
+## Update — Opus 4.6 confirms the signal (N=3, 2026-04-14)
+
+Reran the same 3-variant sweep on `claude-opus-4-6` (`results/opus-multimcp-n3/`).
+
+| Variant | Cost (median) | Tokens (median) | Tool calls | Wall (median) |
+|---|---|---|---|---|
+| `multi-mcp-baseline` | $0.1436 | 398,669 | 7.0 | 52.8 s |
+| `multi-mcp-codemode` (hint) | **$0.0808 (−44%)** | 301,491 (−24%) | 5.0 (−29%) | 69.0 s |
+| `multi-mcp-block` | $0.1805 (+26%) | 670,335 (+68%) | 12.0 (+71%) | 105.9 s |
+
+**Hint mode delta is *larger* on Opus (−44%) than on Sonnet (−19–30%).** Plausible mechanism: Opus does more upfront planning work, so the cost of one speculative `ToolSearch` is higher per-occurrence. SKILL.md routing text suppresses it; bigger absolute saving.
+
+Block remains net-negative on Opus too (+26% cost), consistent with the Sonnet finding that block is for safety, not performance.
+
 ## Cost ledger (this session)
 
 - Pre-tracking estimated sweeps: ~$50 (Opus-dominated)

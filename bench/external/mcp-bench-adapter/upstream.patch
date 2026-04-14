@@ -1,0 +1,92 @@
+diff --git a/benchmark/runner.py b/benchmark/runner.py
+index cb97637..3652255 100644
+--- a/benchmark/runner.py
++++ b/benchmark/runner.py
+@@ -30,6 +30,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+ from openai import AsyncAzureOpenAI
+ 
+ from agent.executor import TaskExecutor
++from agent.claude_code_executor import ClaudeCodeExecutor
++from llm.claude_code_provider import ClaudeCodeProvider
+ from mcp_modules.server_manager_persistent import PersistentMultiServerManager
+ from llm.provider import LLMProvider
+ from llm.factory import LLMFactory
+@@ -485,12 +487,21 @@ class BenchmarkRunner:
+                                 'execution_time': time.time() - start_time
+                             }
+                     
+-                    # Create executor and execute task
+-                    executor = TaskExecutor(
+-                        llm_provider, 
+-                        conn_mgr.server_manager, 
+-                        self.concurrent_summarization
+-                    )
++                    # Create executor and execute task. For Claude Code variants
++                    # we swap in ClaudeCodeExecutor which spawns `claude -p` and
++                    # lets it drive its own MCP tool-use loop.
++                    if isinstance(llm_provider, ClaudeCodeProvider):
++                        executor = ClaudeCodeExecutor(
++                            llm_provider,
++                            conn_mgr.server_manager,
++                            self.concurrent_summarization,
++                        )
++                    else:
++                        executor = TaskExecutor(
++                            llm_provider,
++                            conn_mgr.server_manager,
++                            self.concurrent_summarization,
++                        )
+                     
+                     
+                     task_execution_start_time = time.time()
+diff --git a/llm/factory.py b/llm/factory.py
+index 8a834ca..7399222 100644
+--- a/llm/factory.py
++++ b/llm/factory.py
+@@ -12,6 +12,7 @@ import os
+ from typing import Dict, Any
+ from openai import AsyncOpenAI, AsyncAzureOpenAI
+ from .provider import LLMProvider
++from .claude_code_provider import ClaudeCodeProvider
+ import config.config_loader as config_loader
+ 
+ 
+@@ -294,6 +295,27 @@ class LLMFactory:
+                 model_name="google/gemini-2.5-pro"
+             )
+         
++        # Claude Code variants — drive `claude -p` as a subprocess agent.
++        # Two siblings: bare Claude Code (baseline) vs Claude Code with the
++        # @desplega/code-mode plugin in BLOCK mode (forces routing through
++        # mcp__code-mode__run when other MCPs are denied).
++        if os.getenv("CLAUDE_CODE_OAUTH_TOKEN"):
++            for cc_model in (
++                os.getenv("CLAUDE_CODE_MODEL", "claude-sonnet-4-6"),
++            ):
++                configs["claude-code-baseline"] = ModelConfig(
++                    name="claude-code-baseline",
++                    provider_type="claude_code",
++                    cc_model=cc_model,
++                    cc_variant="baseline",
++                )
++                configs["claude-code-codemode-block"] = ModelConfig(
++                    name="claude-code-codemode-block",
++                    provider_type="claude_code",
++                    cc_model=cc_model,
++                    cc_variant="codemode-block",
++                )
++
+         # Llama models
+         llama_models = [
+             ("llama-4-maverick", "LLAMA_4_MAVERICK"),
+@@ -356,6 +378,10 @@ class LLMFactory:
+                 deployment_name=model_config.config["model_name"],
+                 provider_type="openai_compatible"
+             )
++        elif model_config.provider_type == "claude_code":
++            os.environ["CODE_MODE_VARIANT"] = model_config.config["cc_variant"]
++            os.environ["CLAUDE_CODE_MODEL"] = model_config.config["cc_model"]
++            return ClaudeCodeProvider(model=model_config.config["cc_model"])
+         elif model_config.provider_type == "openrouter":
+             client = AsyncOpenAI(
+                 api_key=model_config.config["api_key"],

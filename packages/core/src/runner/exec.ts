@@ -41,6 +41,24 @@ export interface RunResultOk {
   durationMs: number;
   reason: "ok";
   limits: RunLimits;
+  /**
+   * Populated by the MCP `run` handler (not `execScript` itself) when the
+   * inline/stdin source was auto-persisted under `.code-mode/scripts/auto/`.
+   * `null` when auto-save was skipped (trivial script, invalid intent, etc.).
+   */
+  autoSaved?: AutoSaveInfo | null;
+}
+
+export interface AutoSaveInfo {
+  reason: "saved" | "deduped" | "skipped-trivial" | "skipped-invalid-intent";
+  /** Present on `saved` and `deduped`. */
+  slug?: string;
+  /** Absolute path. Present on `saved` and `deduped`. */
+  path?: string;
+  /** Content hash used for dedupe. */
+  hash: string;
+  /** Details for skipped cases. */
+  detail?: string;
 }
 
 export interface RunResultFail {

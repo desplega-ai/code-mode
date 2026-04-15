@@ -17,6 +17,7 @@ export type {
   RunResultFail,
   RunReason,
   ExecOptions,
+  AutoSaveInfo,
 } from "./runner/exec.ts";
 export type { Executor, ExecutorInput } from "./runner/executor.ts";
 export { BunExecutor } from "./runner/bun-executor.ts";

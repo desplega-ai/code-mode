@@ -80,7 +80,7 @@ export function createServer(opts: CreateServerOptions): Server {
         case "search": {
           const db = openDb();
           try {
-            const out = handleSearch(db, args as never);
+            const out = handleSearch(db, args as never, ws.codeModeDir);
             return successResult(out);
           } finally {
             if (!opts.db) db.close();
@@ -115,7 +115,7 @@ export function createServer(opts: CreateServerOptions): Server {
         case "query_types": {
           const db = openDb();
           try {
-            return successResult(handleQueryTypes(db, args as never));
+            return successResult(handleQueryTypes(db, args as never, ws.codeModeDir));
           } finally {
             if (!opts.db) db.close();
           }
@@ -133,11 +133,21 @@ export function createServer(opts: CreateServerOptions): Server {
 
 // ─────────────────────────────────────────────────────────── tool schemas ──
 
+const INTENT_OPTIONAL_DESC =
+  "Optional: one short sentence describing why you're making this call. Logged " +
+  "to .code-mode/intent-log.jsonl for session telemetry. Not validated.";
+
+const INTENT_REQUIRED_DESC =
+  "Required: one short sentence (≥4 words) describing why you're making this " +
+  "call. For `run` with inline source, drives the slug for auto-save under " +
+  ".code-mode/scripts/auto/<slug>.ts so future __search calls can find it. " +
+  "For `save`, goes into the intent log next to the script name.";
+
 const TOOL_DEFS: Tool[] = [
   {
     name: "search",
     description:
-      "Full-text search over indexed scripts and symbols. Returns pointers (path, name, description, scope, kind, score) — not source code. Filters `status='unusable'` scripts automatically.",
+      "Full-text search over indexed scripts and symbols. Returns pointers (path, name, description, scope, kind, score) — not source code. Filters `status='unusable'` scripts automatically. Auto-saved scripts under `scripts/auto/` are included — search by the same keywords you'd use in an `intent`.",
     inputSchema: {
       type: "object",
       properties: {
@@ -153,6 +163,7 @@ const TOOL_DEFS: Tool[] = [
             "Restrict to a symbol kind: function|type|interface|class|const. Ignored for scripts.",
         },
         limit: { type: "number", description: "Max merged results (default 50)." },
+        intent: { type: "string", description: INTENT_OPTIONAL_DESC },
       },
       required: ["query"],
     },
@@ -160,7 +171,7 @@ const TOOL_DEFS: Tool[] = [
   {
     name: "run",
     description:
-      "Execute a saved script (mode='named'), an inline source string (mode='inline'), or source passed via stdin-equivalent (mode='stdin'). Returns { success, result, logs, ... }.",
+      "Execute a saved script (mode='named'), an inline source string (mode='inline'), or source passed via stdin-equivalent (mode='stdin'). Returns { success, result, logs, autoSaved?, ... }. Successful inline/stdin runs are auto-persisted under `.code-mode/scripts/auto/<slug>.ts` (slug derived from `intent`) so future calls can reuse them via mode='named'. Call __search(intent_keywords) before writing inline — reuse beats reinvention.",
     inputSchema: {
       type: "object",
       properties: {
@@ -173,6 +184,12 @@ const TOOL_DEFS: Tool[] = [
         source: {
           type: "string",
           description: "TS source code (required when mode='inline'|'stdin').",
+        },
+        intent: {
+          type: "string",
+          description:
+            INTENT_REQUIRED_DESC +
+            " Required when mode='inline'|'stdin'; optional (but logged) when mode='named'.",
         },
         argsJson: {
           type: "string",
@@ -189,17 +206,18 @@ const TOOL_DEFS: Tool[] = [
   {
     name: "save",
     description:
-      "Persist a script to `.code-mode/scripts/<name>.ts`, typechecks it, and reindexes on success. Returns diagnostics on typecheck failure (file removed).",
+      "Persist a script to `.code-mode/scripts/<name>.ts`, typechecks it, and reindexes on success. Returns diagnostics on typecheck failure (file removed). Note: successful inline runs are auto-saved under `scripts/auto/`; use explicit `save` only for hand-curated scripts you want under `scripts/<name>.ts`.",
     inputSchema: {
       type: "object",
       properties: {
         name: { type: "string" },
         source: { type: "string", description: "TypeScript source to persist." },
+        intent: { type: "string", description: INTENT_REQUIRED_DESC },
         description: { type: "string" },
         tags: { type: "array", items: { type: "string" } },
         overwrite: { type: "boolean" },
       },
-      required: ["name", "source"],
+      required: ["name", "source", "intent"],
     },
   },
   {
@@ -225,6 +243,7 @@ const TOOL_DEFS: Tool[] = [
           description: "Restrict to a single symbol kind.",
         },
         limit: { type: "number" },
+        intent: { type: "string", description: INTENT_OPTIONAL_DESC },
       },
       required: ["pattern"],
     },

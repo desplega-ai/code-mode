@@ -147,12 +147,115 @@ describe("mcp server", () => {
       arguments: {
         name: "added_via_mcp",
         source: `export default async function main() { return 42; }\n`,
+        intent: "persist the added_via_mcp smoke test script",
       },
     });
     expect(res.isError).toBeFalsy();
     const parsed = parseJsonContent(res);
     expect(parsed.success).toBe(true);
     expect(parsed.path).toContain("added_via_mcp.ts");
+  });
+
+  test("save rejects missing intent", async () => {
+    const res = await client.callTool({
+      name: "save",
+      arguments: {
+        name: "missing_intent",
+        source: `export default async function main() { return 1; }\n`,
+      },
+    });
+    expect(res.isError).toBe(true);
+    const textBlock = (res as { content?: Array<{ type: string; text?: string }> })
+      .content?.[0];
+    expect(textBlock?.text).toContain("intent");
+  });
+
+  test("run inline requires intent", async () => {
+    const res = await client.callTool({
+      name: "run",
+      arguments: {
+        mode: "inline",
+        source: `export default async function main() { return 1; }\n`,
+      },
+    });
+    expect(res.isError).toBe(true);
+  });
+
+  test("run inline with intent auto-saves a substantial script", async () => {
+    const substantial = [
+      'import { filter } from "@/sdks/stdlib/filter";',
+      "",
+      "export default async function main() {",
+      "  const xs = [1, 2, 3, 4, 5];",
+      "  const even = filter(xs, (x) => x % 2 === 0);",
+      "  return { even };",
+      "}",
+    ].join("\n");
+    const res = await client.callTool({
+      name: "run",
+      arguments: {
+        mode: "inline",
+        source: substantial,
+        intent: "filter a small array to its even elements for demo",
+      },
+    });
+    expect(res.isError).toBeFalsy();
+    const parsed = parseJsonContent(res);
+    expect(parsed.success).toBe(true);
+    expect(parsed.autoSaved).toBeDefined();
+    expect(parsed.autoSaved.reason).toBe("saved");
+    expect(parsed.autoSaved.slug).toContain("filter");
+    expect(parsed.autoSaved.path).toContain("/scripts/auto/");
+  });
+
+  test("run inline dedupes identical body on second call", async () => {
+    const body = [
+      'import { filter } from "@/sdks/stdlib/filter";',
+      "",
+      "export default async function main() {",
+      "  const xs = [10, 20, 30, 40];",
+      "  const big = filter(xs, (x) => x > 15);",
+      "  return { big };",
+      "}",
+    ].join("\n");
+    const first = await client.callTool({
+      name: "run",
+      arguments: {
+        mode: "inline",
+        source: body,
+        intent: "filter large values from an integer list",
+      },
+    });
+    const firstParsed = parseJsonContent(first);
+    expect(firstParsed.autoSaved.reason).toBe("saved");
+
+    const second = await client.callTool({
+      name: "run",
+      arguments: {
+        mode: "inline",
+        source: body,
+        intent: "completely different intent words on purpose",
+      },
+    });
+    const secondParsed = parseJsonContent(second);
+    expect(secondParsed.autoSaved.reason).toBe("deduped");
+    expect(secondParsed.autoSaved.hash).toBe(firstParsed.autoSaved.hash);
+    expect(secondParsed.autoSaved.path).toBe(firstParsed.autoSaved.path);
+  });
+
+  test("run inline skips auto-save for trivial source", async () => {
+    const res = await client.callTool({
+      name: "run",
+      arguments: {
+        mode: "inline",
+        source: `export default async function main() { return 1; }\n`,
+        intent: "smoke probe a trivial one-liner handler script",
+      },
+    });
+    expect(res.isError).toBeFalsy();
+    const parsed = parseJsonContent(res);
+    expect(parsed.success).toBe(true);
+    expect(parsed.autoSaved?.reason).toBe("skipped-trivial");
   });
 });
 

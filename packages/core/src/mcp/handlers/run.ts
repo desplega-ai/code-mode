@@ -24,7 +24,10 @@ import { isAbsolute, join } from "node:path";
 import { execScript, type RunResult } from "../../runner/exec.ts";
 import { resolveWorkspacePaths } from "../../index/reindex.ts";
 import { updateUsageCounter } from "../../commands/run.ts";
-import { normalizeScriptSource } from "../../analysis/normalize.ts";
+import {
+  normalizeScriptSource,
+  rewriteWorkspaceAliases,
+} from "../../analysis/normalize.ts";
 import { writeAutoSave } from "../../analysis/auto-save.ts";
 import { logIntent } from "../../analysis/intent-log.ts";
 import { openDatabase } from "../../db/open.ts";
@@ -57,7 +60,8 @@ export async function handleRun(
   let entry: string;
   let cleanup: (() => void) | undefined;
   let isInlineLike = false;
-  let normalizedSource: string | undefined;
+  /** Post-fence-strip, PRE-alias-rewrite. What we save to scripts/auto/. */
+  let portableSource: string | undefined;
 
   if (args.mode === "named") {
     if (!args.name) {
@@ -83,15 +87,26 @@ export async function handleRun(
     isInlineLike = true;
     const tmp = mkdtempSync(join(tmpdir(), "code-mode-mcp-run-"));
     entry = join(tmp, "inline.ts");
-    // Pass codeModeDir so `@/...` import specifiers get rewritten to
-    // absolute paths. Without this, Bun walks up from `inline.ts` in
-    // the tmpdir looking for our tsconfig's paths alias and doesn't
-    // find it, so `@/sdks/.generated/<server>` fails to resolve.
-    const normalized = normalizeScriptSource(args.source, {
-      codeModeDir: ws.codeModeDir,
-    });
-    normalizedSource = normalized.source;
-    writeFileSync(entry, normalized.source, "utf8");
+    // Normalize in two stages so auto-save stores a PORTABLE source
+    // (workspace-relative `@/...` specifiers intact) while the tmpfile
+    // gets the fully-resolved absolute paths it needs for Bun to find
+    // modules from outside the workspace's tsconfig scope:
+    //
+    //   1. `normalizeScriptSource` (no codeModeDir) → strip BOM / shebang /
+    //      markdown fence. Preserve `@/...` import specifiers verbatim.
+    //      This is what we persist to `scripts/auto/<slug>.ts` so a later
+    //      run from a DIFFERENT workdir can resolve the alias via that
+    //      workdir's own tsconfig. Baking in absolute paths here makes
+    //      saved scripts brittle across workspaces (seed-copying or
+    //      snapshot restore would break imports).
+    //
+    //   2. `rewriteWorkspaceAliases` separately → produce the executable
+    //      source for the tmpfile, which lives outside the workspace's
+    //      tsconfig scope.
+    const cleaned = normalizeScriptSource(args.source);
+    portableSource = cleaned.source;
+    const executable = rewriteWorkspaceAliases(cleaned.source, ws.codeModeDir);
+    writeFileSync(entry, executable.source, "utf8");
     cleanup = () => {
       try {
         rmSync(tmp, { recursive: true, force: true });
@@ -141,17 +156,19 @@ export async function handleRun(
     }
 
     // Auto-save successful inline/stdin runs so the agent can retrieve
-    // them later via __search. We pass the *normalized* source (post-alias
-    // rewrite) so the saved file is immediately runnable by name without
-    // re-normalization. DB indexing is best-effort — reindex catches up.
-    if (result.success && isInlineLike && args.intent && normalizedSource) {
+    // them later via __search. We save the PORTABLE source (BOM/shebang/
+    // fence stripped, but `@/...` specifiers intact) so named-mode
+    // execution in this workspace — or any workspace that inherits the
+    // file via seed-copy — resolves the alias through its own tsconfig.
+    // DB indexing is best-effort — reindex catches up if the write fails.
+    if (result.success && isInlineLike && args.intent && portableSource) {
       try {
         const db = existsSync(ws.dbPath) ? openDatabase(ws.dbPath) : undefined;
         try {
           if (db) migrate(db);
           const saved = writeAutoSave({
             intent: args.intent.trim(),
-            source: normalizedSource,
+            source: portableSource,
             codeModeDir: ws.codeModeDir,
             db,
           });

@@ -243,6 +243,38 @@ describe("mcp server", () => {
     expect(secondParsed.autoSaved.path).toBe(firstParsed.autoSaved.path);
   });
 
+  test("run inline preserves @/... specifiers in the auto-saved file", async () => {
+    // Regression: previously we saved the post-rewrite (absolute-path)
+    // source, which baked in workspace-specific absolute paths and broke
+    // portability across workspaces (seed-copy scenario).
+    const substantial = [
+      'import { filter } from "@/sdks/stdlib/filter";',
+      "",
+      "export default async function main() {",
+      "  const xs = [100, 200, 300];",
+      "  const big = filter(xs, (x) => x > 150);",
+      "  return { big };",
+      "}",
+    ].join("\n");
+    const res = await client.callTool({
+      name: "run",
+      arguments: {
+        mode: "inline",
+        source: substantial,
+        intent: "filter numbers above a threshold for portability regression",
+      },
+    });
+    expect(res.isError).toBeFalsy();
+    const parsed = parseJsonContent(res);
+    expect(parsed.autoSaved?.reason).toBe("saved");
+    // Read the saved file from disk and verify it contains the @/...
+    // specifier verbatim, not a rewritten absolute path.
+    const { readFileSync } = await import("node:fs");
+    const saved = readFileSync(parsed.autoSaved.path, "utf8");
+    expect(saved).toContain('from "@/sdks/stdlib/filter"');
+    expect(saved).not.toContain(`${workspaceDir}/.code-mode/sdks/stdlib/filter`);
+  });
+
   test("run inline skips auto-save for trivial source", async () => {
     const res = await client.callTool({
       name: "run",

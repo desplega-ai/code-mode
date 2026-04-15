@@ -231,6 +231,34 @@ class ClaudeCodeExecutor:
                     [shutil.which("code-mode") or "code-mode", "init", str(workdir)],
                     cwd=str(workdir), env=os.environ.copy(), timeout_s=60,
                 )
+
+                # Optional: seed .code-mode/scripts/auto/ from a prior run's
+                # workdir so the agent inherits auto-saved scripts as
+                # pre-existing reusable helpers. Drives the Phase D
+                # compounding experiment — iteration N can find scripts
+                # that iteration N-1 wrote without needing any shared DB
+                # state: reindex below picks them up as fresh rows.
+                seed_auto = os.environ.get("CLAUDE_CODE_SHARED_SCRIPTS_AUTO")
+                if seed_auto:
+                    seed_src = Path(seed_auto)
+                    if seed_src.is_dir():
+                        dest_auto = workdir / ".code-mode" / "scripts" / "auto"
+                        dest_auto.mkdir(parents=True, exist_ok=True)
+                        copied = 0
+                        for ts_file in seed_src.glob("*.ts"):
+                            shutil.copy2(ts_file, dest_auto / ts_file.name)
+                            copied += 1
+                        logger.info(
+                            "[code-mode seed] copied %d auto-saved script(s) from %s",
+                            copied, seed_src,
+                        )
+                    else:
+                        logger.warning(
+                            "[code-mode seed] CLAUDE_CODE_SHARED_SCRIPTS_AUTO=%s "
+                            "is not a directory; skipping seed",
+                            seed_auto,
+                        )
+
                 await self._run(
                     [shutil.which("code-mode") or "code-mode", "reindex"],
                     cwd=str(workdir), env=os.environ.copy(), timeout_s=60,

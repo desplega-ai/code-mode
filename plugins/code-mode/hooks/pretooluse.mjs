@@ -9,6 +9,8 @@
 // tiny JSON write. Respects CODE_MODE_SKIP=1 and a per-session dedup
 // state file in $TMPDIR so each tool only gets hinted once.
 
+import { existsSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import {
   readConfig,
   isMcpWhitelisted,
@@ -55,6 +57,67 @@ function denyWithReason(reason) {
       permissionDecisionReason: reason,
     },
   };
+}
+
+/**
+ * Return a passive reuse hint when the agent is about to run an inline
+ * script and `<workspace>/.code-mode/scripts/auto/` contains files whose
+ * slugs share tokens with the agent's `intent`. Dependency-free: we
+ * compare filename slugs against intent keywords rather than opening
+ * the SQLite FTS index, which would force a better-sqlite3 dep into
+ * the hook runtime (Node, not Bun).
+ *
+ * The match heuristic is deliberately simple:
+ *   - split the intent on whitespace
+ *   - drop tokens <4 characters (stopword-ish filter)
+ *   - a script matches if its slug contains ≥1 non-trivial token
+ *
+ * This misses semantic matches with different vocabulary, but catches
+ * the common case of similar-wording intents — which is exactly what
+ * auto-save produces on its own for repeat work.
+ *
+ * Returns the hint string (to inject into additionalContext) or null if
+ * no files match / the auto dir doesn't exist yet.
+ */
+function codeModeReuseHint(cwd, intent) {
+  const autoDir = join(cwd, ".code-mode", "scripts", "auto");
+  if (!existsSync(autoDir)) return null;
+
+  let files;
+  try {
+    files = readdirSync(autoDir).filter((f) => f.endsWith(".ts"));
+  } catch {
+    return null;
+  }
+  if (files.length === 0) return null;
+
+  const tokens = intent
+    .toLowerCase()
+    .split(/\s+/)
+    .map((t) => t.replace(/[^a-z0-9]+/g, ""))
+    .filter((t) => t.length >= 4);
+  if (tokens.length === 0) return null;
+
+  const matches = [];
+  for (const file of files) {
+    const slug = file.slice(0, -3); // drop .ts
+    if (tokens.some((t) => slug.includes(t))) {
+      matches.push(slug);
+      if (matches.length >= 5) break;
+    }
+  }
+  if (matches.length === 0) return null;
+
+  const lines = [
+    "code-mode: found auto-saved script(s) whose name matches keywords from your `intent`:",
+    ...matches.map((m) => `  - auto/${m}`),
+    "",
+    "If one of them already does what you need, call `run` with `mode: 'named', name: 'auto/<slug>'`",
+    "instead of re-authoring the script. Reuse beats reinvention.",
+    "",
+    "Otherwise proceed — this is a passive hint, not a block.",
+  ];
+  return lines.join("\n");
 }
 
 async function readStdin() {
@@ -143,8 +206,21 @@ async function main() {
       decision = allowWithContext(bashGenericHint(cwd));
     }
   } else if (toolName.startsWith("mcp__")) {
-    // Own tools (both shapes): silent pass, no dedup bump.
+    // Own tools (both shapes): check for auto-save reuse opportunity on
+    // `run` with inline/stdin mode, otherwise silent pass. No dedup bump
+    // so the hint re-fires on repeat invocations (agent picks up on it).
     if (CODE_MODE_SELF_TOOL_RE.test(toolName)) {
+      if (toolName.endsWith("__run")) {
+        const mode = typeof toolInput.mode === "string" ? toolInput.mode : "";
+        const intent = typeof toolInput.intent === "string" ? toolInput.intent : "";
+        if ((mode === "inline" || mode === "stdin") && intent.trim()) {
+          const hint = codeModeReuseHint(cwd, intent);
+          if (hint) {
+            emit(allowWithContext(hint));
+            return;
+          }
+        }
+      }
       emit({});
       return;
     }

@@ -85,11 +85,13 @@ const p = codeModeToolPrefix(null, sessionCwd);
 
 const routingBody = `code-mode routing guidance:
 
-- Before writing throwaway TypeScript (inline snippets, scratch scripts, one-off transforms), call \`${p}search\` first to check whether a saved script already solves the task. Reuse beats reinvention.
+- Every call to \`${p}run\`, \`${p}save\`, \`${p}search\`, and \`${p}query_types\` now accepts (and for \`run\`/\`save\` REQUIRES) an \`intent\` field: one short sentence (≥4 words) describing why you're making the call. Intents are logged to \`.code-mode/intent-log.jsonl\` for session telemetry; for \`run\` they also drive the auto-save slug.
+- \`${p}run\` inline/stdin: every SUCCESSFUL run is auto-persisted to \`.code-mode/scripts/auto/<slug>.ts\`, where \`<slug>\` is derived from your \`intent\`. The returned \`autoSaved\` field shows the reason (\`saved\`, \`deduped\`, \`skipped-trivial\`) and the path. Next time you need the same behavior, call \`run\` with \`mode: 'named', name: 'auto/<slug>'\` — or call \`${p}search\` with keywords from your intent first.
+- Before writing throwaway TypeScript, call \`${p}search\` first to check whether a saved script (including auto-saved ones under \`scripts/auto/\`) already solves the task. Reuse beats reinvention. The pretooluse hook also injects a passive hint when your \`intent\` keywords match an existing auto-save — if you see one, prefer \`mode: 'named'\`.
 - Before reaching for \`WebFetch\`, consider running the stdlib \`fetch\` helper via \`${p}run\`. It has retries, timeout via AbortController, and typed JSON parsing built-in — strictly more capable than \`WebFetch\` for structured API work.
-- After writing a useful script, call \`${p}save\` with a kebab-case \`name\` so future sessions can find it. The PostToolUse reindex hook handles the rest automatically.
-- When an MCP tool is unavailable or blocked (see \`mcpBlockMode\` in \`.code-mode/config.json\`), consider whether a code-mode script using stdlib helpers (\`fetch\`, \`grep\`, \`glob\`, \`table\`, \`filter\`, \`flatten\`, \`fuzzy-match\`) can do the same job. Write inline with \`__run\` or save it with \`__save\` for reuse — don't give up just because \`__search\` returns nothing (it only finds existing scripts).
-- Available stdlib helpers (already seeded by \`code-mode init\` under \`.code-mode/sdks/stdlib/\`): \`fetch\`, \`grep\`, \`glob\`, \`fuzzy-match\`, \`table\`, \`filter\`, \`flatten\`. Query their signatures via \`${p}query_types\` or search by keyword with \`__search\`.
+- Use \`${p}save\` only for hand-curated scripts you want under \`.code-mode/scripts/<name>.ts\` (not \`scripts/auto/\`). Successful inline runs get auto-saved already; explicit \`save\` is for promoting something worth keeping.
+- When an MCP tool is unavailable or blocked (see \`mcpBlockMode\` in \`.code-mode/config.json\`), consider whether a code-mode script using stdlib helpers (\`fetch\`, \`grep\`, \`glob\`, \`table\`, \`filter\`, \`flatten\`, \`fuzzy-match\`) can do the same job. Write inline with \`${p}run\` + intent — don't give up just because \`${p}search\` returns nothing.
+- Available stdlib helpers (already seeded by \`code-mode init\` under \`.code-mode/sdks/stdlib/\`): \`fetch\`, \`grep\`, \`glob\`, \`fuzzy-match\`, \`table\`, \`filter\`, \`flatten\`. Query their signatures via \`${p}query_types\` or search by keyword with \`${p}search\`.
 
 Escape hatch: set \`CODE_MODE_SKIP=1\` to bypass all code-mode hooks for the session.`;
 

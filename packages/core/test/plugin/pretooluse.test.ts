@@ -524,3 +524,156 @@ describe("pretooluse hook — dedup + escape hatches", () => {
     expect(r.parsed).toEqual({});
   });
 });
+
+describe("pretooluse hook — auto-save reuse hint", () => {
+  let isolatedTmp: string;
+  let ws: string;
+
+  beforeEach(() => {
+    isolatedTmp = makeTmpdir();
+    ws = mkdtempSync(join(tmpdir(), "cm-hook-reuse-"));
+    mkdirSync(join(ws, ".code-mode", "scripts", "auto"), { recursive: true });
+  });
+
+  afterEach(() => {
+    try {
+      rmSync(isolatedTmp, { recursive: true, force: true });
+    } catch {
+      // ignore
+    }
+    try {
+      rmSync(ws, { recursive: true, force: true });
+    } catch {
+      // ignore
+    }
+  });
+
+  function seedAuto(slug: string): void {
+    writeFileSync(
+      join(ws, ".code-mode", "scripts", "auto", `${slug}.ts`),
+      "// auto-save\n// intent: test\nexport default async function main() { return 1; }\n",
+      "utf8",
+    );
+  }
+
+  test("run inline with matching intent emits reuse hint", () => {
+    seedAuto("fetch-all-monet-paintings-from-the-met");
+    const r = runHook(
+      {
+        tool_name: "mcp__plugin_code-mode_code-mode__run",
+        tool_input: {
+          mode: "inline",
+          intent: "fetch monet paintings from the met collection",
+          source: "export default async function main() { return 1; }",
+        },
+      },
+      { env: { TMPDIR: isolatedTmp }, cwd: ws, sessionId: "s-reuse-1" },
+    );
+    expect(r.parsed.hookSpecificOutput?.permissionDecision).toBe("allow");
+    const ctx = r.parsed.hookSpecificOutput?.additionalContext ?? "";
+    expect(ctx).toContain("auto-saved script");
+    expect(ctx).toContain("fetch-all-monet-paintings-from-the-met");
+    expect(ctx).toContain("mode: 'named'");
+  });
+
+  test("matches on any ≥4-char token, not just all tokens", () => {
+    seedAuto("retrieve-impressionist-artwork-metadata");
+    const r = runHook(
+      {
+        tool_name: "mcp__plugin_code-mode_code-mode__run",
+        tool_input: {
+          mode: "inline",
+          intent: "grab some impressionist data for a report",
+          source: "export default async function main() { return 1; }",
+        },
+      },
+      { env: { TMPDIR: isolatedTmp }, cwd: ws, sessionId: "s-reuse-2" },
+    );
+    const ctx = r.parsed.hookSpecificOutput?.additionalContext ?? "";
+    expect(ctx).toContain("retrieve-impressionist-artwork-metadata");
+  });
+
+  test("no matching slugs → silent pass, no hint", () => {
+    seedAuto("completely-different-unrelated-helper");
+    const r = runHook(
+      {
+        tool_name: "mcp__plugin_code-mode_code-mode__run",
+        tool_input: {
+          mode: "inline",
+          intent: "count the letters in a string for validation",
+          source: "export default async function main() { return 1; }",
+        },
+      },
+      { env: { TMPDIR: isolatedTmp }, cwd: ws, sessionId: "s-reuse-3" },
+    );
+    expect(r.parsed).toEqual({});
+  });
+
+  test("auto dir missing → silent pass, no hint", () => {
+    // Rebuild ws without scripts/auto.
+    rmSync(join(ws, ".code-mode"), { recursive: true, force: true });
+    const r = runHook(
+      {
+        tool_name: "mcp__plugin_code-mode_code-mode__run",
+        tool_input: {
+          mode: "inline",
+          intent: "fetch monet paintings from the met",
+          source: "export default async function main() { return 1; }",
+        },
+      },
+      { env: { TMPDIR: isolatedTmp }, cwd: ws, sessionId: "s-reuse-4" },
+    );
+    expect(r.parsed).toEqual({});
+  });
+
+  test("mode=named → silent pass regardless of saved scripts", () => {
+    seedAuto("fetch-all-monet-paintings-from-the-met");
+    const r = runHook(
+      {
+        tool_name: "mcp__plugin_code-mode_code-mode__run",
+        tool_input: {
+          mode: "named",
+          name: "hello",
+          intent: "run the hello greeting script for smoke testing",
+        },
+      },
+      { env: { TMPDIR: isolatedTmp }, cwd: ws, sessionId: "s-reuse-5" },
+    );
+    expect(r.parsed).toEqual({});
+  });
+
+  test("missing intent → silent pass (server-side validation handles the reject)", () => {
+    seedAuto("fetch-all-monet-paintings-from-the-met");
+    const r = runHook(
+      {
+        tool_name: "mcp__plugin_code-mode_code-mode__run",
+        tool_input: {
+          mode: "inline",
+          source: "export default async function main() { return 1; }",
+        },
+      },
+      { env: { TMPDIR: isolatedTmp }, cwd: ws, sessionId: "s-reuse-6" },
+    );
+    expect(r.parsed).toEqual({});
+  });
+
+  test("bare code-mode tool name shape also gets the hint", () => {
+    // Without the `plugin_` prefix (direct MCP server registration).
+    seedAuto("fetch-all-monet-paintings-from-the-met");
+    const r = runHook(
+      {
+        tool_name: "mcp__code-mode__run",
+        tool_input: {
+          mode: "inline",
+          intent: "fetch all monet paintings from the met",
+          source: "export default async function main() { return 1; }",
+        },
+      },
+      { env: { TMPDIR: isolatedTmp }, cwd: ws, sessionId: "s-reuse-7" },
+    );
+    expect(r.parsed.hookSpecificOutput?.permissionDecision).toBe("allow");
+    expect(r.parsed.hookSpecificOutput?.additionalContext).toContain(
+      "fetch-all-monet-paintings-from-the-met",
+    );
+  });
+});

@@ -107,7 +107,13 @@ async function resolveEntry(
 
   if (opts.source === "-" || opts.source === true) {
     const src = await readStdin();
-    const normalized = normalizeScriptSource(src);
+    // Rewrite `@/...` imports to absolute paths — the inline entry is
+    // written to tmpdir, outside the workspace's tsconfig scope, so
+    // the `@/*` alias wouldn't otherwise resolve. See normalize.ts.
+    const ws = resolveWorkspacePaths(workspaceDir);
+    const normalized = normalizeScriptSource(src, {
+      codeModeDir: ws.codeModeDir,
+    });
     const tmp = mkdtempSync(join(tmpdir(), "code-mode-run-"));
     const file = join(tmp, "inline.ts");
     writeFileSync(file, normalized.source, "utf8");

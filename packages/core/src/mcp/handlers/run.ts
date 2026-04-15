@@ -54,7 +54,13 @@ export async function handleRun(
     }
     const tmp = mkdtempSync(join(tmpdir(), "code-mode-mcp-run-"));
     entry = join(tmp, "inline.ts");
-    const normalized = normalizeScriptSource(args.source);
+    // Pass codeModeDir so `@/...` import specifiers get rewritten to
+    // absolute paths. Without this, Bun walks up from `inline.ts` in
+    // the tmpdir looking for our tsconfig's paths alias and doesn't
+    // find it, so `@/sdks/.generated/<server>` fails to resolve.
+    const normalized = normalizeScriptSource(args.source, {
+      codeModeDir: ws.codeModeDir,
+    });
     writeFileSync(entry, normalized.source, "utf8");
     cleanup = () => {
       try {
